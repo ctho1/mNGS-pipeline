@@ -14,14 +14,37 @@
 # =============================================================================
 set -euo pipefail
 
-CONDA_BASE="${CONDA_BASE:-$HOME/miniforge3}"
+# CONDA_BASE: falls nicht explizit gesetzt, erst eine bereits aktive/auf PATH
+# befindliche Installation nutzen (z.B. auf PALMA per Modul/eigenem Setup
+# bereitgestellt, "(base)" im Prompt aktiv), sonst Miniforge-Standardpfad.
+if [ -z "${CONDA_BASE:-}" ]; then
+    if command -v conda >/dev/null 2>&1; then
+        CONDA_BASE="$(conda info --base)"
+    else
+        CONDA_BASE="$HOME/miniforge3"
+    fi
+fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="${WORK_DIR:-$REPO_ROOT}"
 ENV_DIR="$WORK_DIR/conda_envs"
 
+if [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+    echo "Conda-Installation nicht gefunden unter: $CONDA_BASE" >&2
+    echo "Setze CONDA_BASE explizit, z.B.:" >&2
+    echo "  CONDA_BASE=\$(conda info --base) bash scripts/setup_envs.sh" >&2
+    exit 1
+fi
 source "$CONDA_BASE/etc/profile.d/conda.sh"
-MAMBA="$CONDA_BASE/bin/mamba"
-command -v "$MAMBA" >/dev/null || MAMBA="$CONDA_BASE/bin/conda"
+
+# mamba bevorzugen (schneller), sonst conda -- erst auf PATH, dann im
+# erkannten CONDA_BASE suchen.
+if command -v mamba >/dev/null 2>&1; then
+    MAMBA="$(command -v mamba)"
+elif [ -x "$CONDA_BASE/bin/mamba" ]; then
+    MAMBA="$CONDA_BASE/bin/mamba"
+else
+    MAMBA="$CONDA_BASE/bin/conda"
+fi
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
