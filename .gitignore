@@ -1,5 +1,6 @@
 # Rohdaten & generierte Ergebnisse -- nie committen (Patientendaten!)
-/input/
+/input/*
+!/input/.gitkeep
 /references/
 /results/
 /logs/
