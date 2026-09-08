@@ -53,14 +53,14 @@ mkdir -p "$ENV_DIR"
 
 echo "=== align (minimap2, samtools, readCounter) ==="
 if [ ! -d "$ENV_DIR/align" ]; then
-    "$MAMBA" env create -y -p "$ENV_DIR/align" -f "$REPO_ROOT/scripts/envs/align.yaml"
+    "$MAMBA" env create -y --override-channels -p "$ENV_DIR/align" -f "$REPO_ROOT/scripts/envs/align.yaml"
 else
     echo "  bereits vorhanden, überspringe"
 fi
 
 echo "=== report (python, reportlab, python-docx) ==="
 if [ ! -d "$ENV_DIR/report" ]; then
-    "$MAMBA" env create -y -p "$ENV_DIR/report" -f "$REPO_ROOT/scripts/envs/report.yaml"
+    "$MAMBA" env create -y --override-channels -p "$ENV_DIR/report" -f "$REPO_ROOT/scripts/envs/report.yaml"
 else
     echo "  bereits vorhanden, überspringe"
 fi
@@ -69,10 +69,10 @@ echo "=== ichorcna (R, r-ichorcna) ==="
 if [ ! -d "$ENV_DIR/ichorcna" ]; then
     if [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
         echo "  kein osx-arm64-Build -- Env läuft unter Rosetta 2 (osx-64)"
-        CONDA_SUBDIR=osx-64 "$MAMBA" env create -y -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
+        CONDA_SUBDIR=osx-64 "$MAMBA" env create -y --override-channels -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
         echo "subdir: osx-64" >> "$ENV_DIR/ichorcna/.condarc"
     else
-        "$MAMBA" env create -y -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
+        "$MAMBA" env create -y --override-channels -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
     fi
 else
     echo "  bereits vorhanden, überspringe"
@@ -81,7 +81,7 @@ fi
 echo "=== krakenuniq ==="
 if [ "$OS" = "Linux" ]; then
     if [ ! -d "$ENV_DIR/krakenuniq" ]; then
-        "$MAMBA" env create -y -p "$ENV_DIR/krakenuniq" -f "$REPO_ROOT/scripts/envs/krakenuniq.yaml"
+        "$MAMBA" env create -y --override-channels -p "$ENV_DIR/krakenuniq" -f "$REPO_ROOT/scripts/envs/krakenuniq.yaml"
     else
         echo "  bereits vorhanden, überspringe"
     fi
