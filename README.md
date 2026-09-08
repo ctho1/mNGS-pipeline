@@ -104,7 +104,7 @@ KRAKENUNIQ_ENABLED=false bash run_pipeline.sh
 
 - **Mit SLURM (PALMA)**: reicht zunächst -- falls die Referenz fehlt -- einen
   `prepare_reference.sh`-Job ein, dann für jede erkannte Probe einen eigenen
-  `sample_pipeline.sh`-Job (Partition `requeue`, 36 Cores, 140G RAM, 4h
+  `sample_pipeline.sh`-Job (Partition `normal`, 36 Cores, 80G RAM, 30 min
   Zeitlimit; per `--dependency` an den Referenz-Job gekoppelt, falls dieser
   läuft).
 - **Ohne SLURM (lokal)**: führt Referenz-Vorbereitung und alle Proben direkt

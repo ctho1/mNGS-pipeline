@@ -10,10 +10,10 @@
 #   bash scripts/prepare_reference.sh          # lokal ohne SLURM
 # =============================================================================
 #SBATCH --job-name=prepare_reference
-#SBATCH --partition=requeue
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=32G
-#SBATCH --time=2:00:00
+#SBATCH --time=30:00
 #SBATCH --error=./log/%x_%j.err.txt
 #SBATCH --output=./log/%x_%j.out.txt
 

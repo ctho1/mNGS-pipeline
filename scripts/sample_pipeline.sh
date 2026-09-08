@@ -16,10 +16,10 @@
 # beim Submit eigene Flags, die diese überschreiben.
 # =============================================================================
 #SBATCH --job-name=mngs
-#SBATCH --partition=requeue
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=36
-#SBATCH --mem=140G
-#SBATCH --time=4:00:00
+#SBATCH --mem=80G
+#SBATCH --time=30:00
 #SBATCH --error=./log/%x_%j.err.txt
 #SBATCH --output=./log/%x_%j.out.txt
 
