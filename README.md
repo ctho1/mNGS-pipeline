@@ -1,7 +1,12 @@
 # mNGS-Pipeline: Host-Depletion + CNV (ichorCNA) + KrakenUniq
 
-Snakemake-Pipeline für metagenomische Next-Generation-Sequencing-Diagnostik
-(mNGS), kompatibel mit **Nanopore** und **Illumina**. Pro Probe:
+Bash/SLURM-Pipeline für metagenomische Next-Generation-Sequencing-Diagnostik
+(mNGS), kompatibel mit **Nanopore** und **Illumina**. Steuert SLURM auf PALMA
+direkt an (`sbatch`, ein Job pro Probe) -- wie das ursprüngliche
+[krakenuniq-report](https://github.com/ctho1/krakenuniq-report). Läuft ohne
+SLURM (z.B. lokal zum Testen) automatisch seriell im Vordergrund.
+
+Pro Probe:
 
 1. **Nanopore**: alle FASTQ-Dateien im Proben-Unterordner werden zu einer
    Datei konkateniert. **Illumina**: R1/R2-Paar wird direkt verwendet (kein
@@ -19,8 +24,8 @@ Snakemake-Pipeline für metagenomische Next-Generation-Sequencing-Diagnostik
    **beide** Mates ungemappt sind).
 5. **KrakenUniq-Klassifikation** dieser non-human Reads (Single-end oder
    `--paired`, je nach Plattform).
-6. **Report** pro Probe (`workflow/scripts/generate_report_v3.py`, erweitert
-   um Host-Depletion- und CNV-Abschnitt inkl. eingebettetem Genome-Wide-Plot):
+6. **Report** pro Probe (`scripts/generate_report_v3.py`, erweitert um
+   Host-Depletion- und CNV-Abschnitt inkl. eingebettetem Genome-Wide-Plot):
    - `{sample}.metagenomics_report.pdf` -- vollständiger Report (Top-Hits,
      z-Scores, Prävalenz wie im ursprünglichen krakenuniq-report; CNV-Plot
      und Host-Depletion-Zahlen jetzt direkt mit drin)
@@ -29,11 +34,28 @@ Snakemake-Pipeline für metagenomische Next-Generation-Sequencing-Diagnostik
      Standardtext für den unauffälligen Fall + eingefügtem CNV-Plot; bei
      tatsächlichen Erreger-/CNV-Befunden vor Ausgabe manuell anzupassen
 
-Alle Pfade/Parameter stehen zentral in [`config/config.yaml`](config/config.yaml).
-Referenzgenom + Index werden beim ersten Lauf automatisch nach `references/`
-heruntergeladen/gebaut, falls dort noch nicht vorhanden -- wie der Rest dieses
-Repos ist das relativ zum Repo-Root, der komplette Ordner kann also an eine
-beliebige Stelle kopiert werden (PALMA-Scratch, anderes Nutzerkonto, ...).
+## Verzeichnisstruktur
+
+```
+mNGS-pipeline/
+├── run_pipeline.sh          # Einstiegspunkt: erkennt Proben in input/, reicht sbatch-Jobs ein
+├── scripts/
+│   ├── config.sh              # einzige Stelle mit externen/nutzerspezifischen Pfaden
+│   ├── setup_envs.sh          # legt Conda-Envs an (einmalig)
+│   ├── prepare_reference.sh   # sbatch-Job: hg38 laden + beide minimap2-Indizes bauen
+│   ├── sample_pipeline.sh     # sbatch-Job: Concat -> Alignment -> ichorCNA -> KrakenUniq -> Report
+│   ├── concat_fastq.sh
+│   ├── extract_nonhuman_se.sh / extract_nonhuman_pe.sh
+│   ├── krakenuniq_run.sh
+│   ├── run_ichorcna.R
+│   ├── build_report.py        # ruft generate_report_v3.py + erzeugt JSON/docx
+│   ├── generate_report_v3.py  # PDF-Report-Generator (Top-Hits, CNV, Host-Depletion)
+│   ├── kraken_tree.py
+│   └── envs/*.yaml             # Conda-Umgebungsdefinitionen
+├── analysis/                   # Referenz-/Hintergrunddaten für z-Score & Prävalenz
+├── input/                      # hier Proben ablegen (siehe unten)
+└── log/, output/, tmp/, references/, conda_envs/   # werden automatisch angelegt
+```
 
 ## Input-Layout
 
@@ -47,77 +69,83 @@ input/
                                             #    ursprünglichen krakenuniq-report)
 ```
 
-## Einmalige Einrichtung
+## Einrichtung
 
 ```bash
-# Miniforge (falls noch nicht vorhanden)
+# 1. Miniforge (falls noch nicht vorhanden)
 curl -fsSL -o /tmp/Miniforge3.sh \
   "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname -s)-$(uname -m).sh"
 bash /tmp/Miniforge3.sh -b -p "$HOME/miniforge3"
 
-# Conda-Envs anlegen (auf macOS/Apple Silicon läuft ichorcna via Rosetta 2,
-# krakenuniq wird übersprungen -- siehe workflow/scripts/setup_envs.sh;
-# auf PALMA/Linux laufen alle Envs nativ inkl. krakenuniq)
-bash workflow/scripts/setup_envs.sh
+# 2. Conda-Envs anlegen (auf macOS/Apple Silicon läuft ichorcna via Rosetta 2,
+#    krakenuniq wird übersprungen; auf PALMA/Linux laufen alle Envs nativ)
+bash scripts/setup_envs.sh
 
-alias smk="./conda_envs/snakemake/bin/snakemake"
+# 3. scripts/config.sh prüfen/anpassen (Referenz-DB-Pfad, KrakenUniq-
+#    Installationspfad). Bei unverändertem Konto/Setup nicht nötig.
+
+# 4. FASTQ-Dateien nach input/ kopieren (siehe Input-Layout oben).
 ```
 
 ## Ausführen
 
 ```bash
-# Dry-Run: zeigt den vollständigen DAG
-smk -s workflow/Snakefile --profile profiles/local -n -p
+cd mNGS-pipeline
 
-# Vollauf (lokal)
-smk -s workflow/Snakefile --profile profiles/local
+bash run_pipeline.sh                              # standardmäßig ohne Mail-Benachrichtigung
+bash run_pipeline.sh --mail user@uni-muenster.de   # Mail-Benachrichtigung aktivieren
 
 # Lokaler Testlauf ohne KrakenUniq-DB (z.B. auf macOS ohne Zugriff auf die
 # PALMA-Scratch-DB): Report wird trotzdem erzeugt, nur ohne Top-Hits-Tabellen
-smk -s workflow/Snakefile --profile profiles/local \
-    --config 'krakenuniq={"enabled": false}'
-
-# Auf PALMA
-smk -s workflow/Snakefile --profile profiles/palma
+KRAKENUNIQ_ENABLED=false bash run_pipeline.sh
 ```
 
-(Snakemake >=8 erwartet für verschachtelte Config-Keys auf der Kommandozeile
-JSON-Syntax; einfaches `krakenuniq.enabled=false` funktioniert nicht.)
+`run_pipeline.sh` erkennt automatisch, ob `sbatch` verfügbar ist:
+
+- **Mit SLURM (PALMA)**: reicht zunächst -- falls die Referenz fehlt -- einen
+  `prepare_reference.sh`-Job ein, dann für jede erkannte Probe einen eigenen
+  `sample_pipeline.sh`-Job (Partition `requeue`, 36 Cores, 140G RAM, 4h
+  Zeitlimit; per `--dependency` an den Referenz-Job gekoppelt, falls dieser
+  läuft).
+- **Ohne SLURM (lokal)**: führt Referenz-Vorbereitung und alle Proben direkt
+  seriell im Vordergrund aus (`bash scripts/...` statt `sbatch scripts/...`).
+
+Logs landen in `log/`, Zwischendateien in `tmp/`.
 
 ## Ergebnisse
 
-Liegen unter `{work_dir}/results/<Sample>/` (Default `work_dir: "."`, also
-direkt im Repo):
+Liegen unter `output/<Sample>/`:
 
 ```
-fastq/<Sample>.fastq.gz                    # nur Nanopore (konkateniert)
-align/<Sample>.hg38.bam(.bai)              # Alignment gegen hg38
-align/<Sample>.flagstat.txt                # human/non-human-Split
-nonhuman/<Sample>.nonhuman(.R1/.R2).fastq.gz  # Input für KrakenUniq
-ichorCNA/<Sample>.*                        # CNV-Profil (params.txt, .seg.txt, .cna.seg, Plot)
-krakenuniq/<Sample>.krakenuniq.report.txt
-report/<Sample>.metagenomics_report.pdf
-report/<Sample>.summary.json
-report/<Sample>_Nexus_Befund.docx
+<Sample>.hg38.bam(.bai)                    # Alignment gegen hg38
+<Sample>.flagstat.txt                      # human/non-human-Split
+<Sample>.nonhuman(_R1/_R2).fastq.gz        # Input für KrakenUniq
+<Sample>.params.txt / .seg.txt / .cna.seg  # ichorCNA CNV-Profil
+<Sample>/<Sample>_genomeWide.png           # ichorCNA Genome-Wide-Plot
+<Sample>.krakenuniq.report.txt
+<Sample>.metagenomics_report.pdf
+<Sample>.summary.json
+<Sample>_Nexus_Befund.docx
 ```
 
 ## KrakenUniq-Referenzdatenbank
 
 Pfad ist unverändert aus dem ursprünglichen
 [krakenuniq-report](https://github.com/ctho1/krakenuniq-report)
-(`scripts/config.sh`) übernommen und in `config/config.yaml` als Default
+(`scripts/config.sh`) übernommen und in `scripts/config.sh` als Default
 gesetzt -- auf PALMA i.d.R. ohne Anpassung lauffähig. Für ein anderes
-Konto/Setup dort (oder per `--config`) überschreiben.
+Konto/Setup dort (oder per Umgebungsvariable, z.B.
+`KRAKENUNIQ_DB=/anderer/pfad bash run_pipeline.sh`) überschreiben.
 
 Die Genus-Prävalenz-/z-Score-Referenzdaten für den PDF-Report
-(`workflow/analysis/*.csv`, `reference_meta.json`) sind ebenfalls unverändert
-aus diesem Repo übernommen; Aktualisierung weiterhin über
-`workflow/scripts/build_reference_db.py` (falls benötigt, aus dem
-ursprünglichen Repo nachziehen).
+(`analysis/*.csv`, `reference_meta.json`) sind ebenfalls unverändert aus
+diesem Repo übernommen; Aktualisierung weiterhin über
+`scripts/build_reference_db.py` (falls benötigt, aus dem ursprünglichen Repo
+nachziehen).
 
 ## Herkunft
 
 Die Metagenomik-Klassifikation (KrakenUniq + PDF-Report) stammt aus
 [ctho1/krakenuniq-report](https://github.com/ctho1/krakenuniq-report) und
 wurde um Host-Depletion, CNV-Profil (ichorCNA) und Illumina-Unterstützung zu
-einer einheitlichen Snakemake-Pipeline erweitert.
+einer einheitlichen Pipeline erweitert.

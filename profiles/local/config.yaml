@@ -1,9 +1,0 @@
-# Lokales Snakemake-Profil (macOS/Linux, kein SLURM).
-# Verwendung: snakemake --profile profiles/local
-#
-# Für lokale Tests ohne KrakenUniq-DB zusätzlich:
-#   --config 'krakenuniq={"enabled": false}'
-cores: 16
-printshellcmds: true
-rerun-incomplete: true
-keep-going: false
