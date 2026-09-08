@@ -1,3 +1,5 @@
+# Referenz/Dokumentation -- scripts/setup_envs.sh legt dieses Env tatsächlich
+# per `mamba create` (nicht `env create -f`) an, Paketliste dort synchron halten.
 name: nanopore-report
 channels:
   - conda-forge

@@ -11,6 +11,14 @@
 # krakenuniq hat gar keinen osx-Build und wird übersprungen (siehe README zum
 # lokalen Deaktivieren über KRAKENUNIQ_ENABLED=false in scripts/config.sh).
 # Linux (PALMA): alle Envs, inkl. krakenuniq, laufen nativ.
+#
+# Nutzt bewusst `mamba create` (nicht `mamba env create -f ...`): die
+# "env"-Subcommand unterstützt in älteren mamba-Versionen (u.a. auf PALMA
+# angetroffen) kein --override-channels, das hier gebraucht wird, um
+# zusätzliche, global konfigurierte Channels (die z.B. zu alten libdeflate-
+# Konflikten führen) sicher zu ignorieren. Paketlisten unten müssen daher
+# manuell synchron zu scripts/envs/*.yaml gehalten werden (dort nur als
+# Referenz/Dokumentation).
 # =============================================================================
 set -euo pipefail
 
@@ -53,14 +61,16 @@ mkdir -p "$ENV_DIR"
 
 echo "=== align (minimap2, samtools, readCounter) ==="
 if [ ! -d "$ENV_DIR/align" ]; then
-    "$MAMBA" env create -y --override-channels -p "$ENV_DIR/align" -f "$REPO_ROOT/scripts/envs/align.yaml"
+    "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
+        "minimap2>=2.28,<3" "samtools>=1.20,<2" "hmmcopy=0.1.1"
 else
     echo "  bereits vorhanden, überspringe"
 fi
 
 echo "=== report (python, reportlab, python-docx) ==="
 if [ ! -d "$ENV_DIR/report" ]; then
-    "$MAMBA" env create -y --override-channels -p "$ENV_DIR/report" -f "$REPO_ROOT/scripts/envs/report.yaml"
+    "$MAMBA" create -y --override-channels -c conda-forge -p "$ENV_DIR/report" \
+        "python=3.11" "reportlab" "python-docx"
 else
     echo "  bereits vorhanden, überspringe"
 fi
@@ -69,10 +79,12 @@ echo "=== ichorcna (R, r-ichorcna) ==="
 if [ ! -d "$ENV_DIR/ichorcna" ]; then
     if [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
         echo "  kein osx-arm64-Build -- Env läuft unter Rosetta 2 (osx-64)"
-        CONDA_SUBDIR=osx-64 "$MAMBA" env create -y --override-channels -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
+        CONDA_SUBDIR=osx-64 "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
+            "r-base=4.3" "r-ichorcna=0.5.1" "r-optparse"
         echo "subdir: osx-64" >> "$ENV_DIR/ichorcna/.condarc"
     else
-        "$MAMBA" env create -y --override-channels -p "$ENV_DIR/ichorcna" -f "$REPO_ROOT/scripts/envs/ichorcna.yaml"
+        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
+            "r-base=4.3" "r-ichorcna=0.5.1" "r-optparse"
     fi
 else
     echo "  bereits vorhanden, überspringe"
@@ -81,7 +93,8 @@ fi
 echo "=== krakenuniq ==="
 if [ "$OS" = "Linux" ]; then
     if [ ! -d "$ENV_DIR/krakenuniq" ]; then
-        "$MAMBA" env create -y --override-channels -p "$ENV_DIR/krakenuniq" -f "$REPO_ROOT/scripts/envs/krakenuniq.yaml"
+        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/krakenuniq" \
+            "krakenuniq=1.0.4"
     else
         echo "  bereits vorhanden, überspringe"
     fi
