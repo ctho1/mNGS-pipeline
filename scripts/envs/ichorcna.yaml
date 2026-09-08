@@ -5,6 +5,7 @@ name: nanopore-ichorcna
 channels:
   - bioconda
   - conda-forge
+  - nodefaults   # verhindert Konflikte, wenn "defaults" global konfiguriert ist (z.B. auf PALMA)
 dependencies:
   - r-base=4.3
   - r-ichorcna=0.5.1

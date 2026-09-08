@@ -2,7 +2,8 @@ name: nanopore-align
 channels:
   - bioconda
   - conda-forge
+  - nodefaults   # verhindert Konflikte, wenn "defaults" global konfiguriert ist (z.B. auf PALMA)
 dependencies:
-  - minimap2=2.31
-  - samtools=1.24
+  - minimap2>=2.28,<3     # auf PALMA ungenutzt (kommt dort aus dem Modulsystem), aber für lokale Läufe nötig
+  - samtools>=1.20,<2
   - hmmcopy=0.1.1   # liefert readCounter (HMMcopy Utils) für ichorCNA

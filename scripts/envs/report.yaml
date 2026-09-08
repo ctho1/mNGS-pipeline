@@ -1,6 +1,7 @@
 name: nanopore-report
 channels:
   - conda-forge
+  - nodefaults   # verhindert Konflikte, wenn "defaults" global konfiguriert ist (z.B. auf PALMA)
 dependencies:
   - python=3.11
   - reportlab

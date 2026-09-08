@@ -1,10 +1,10 @@
 # Nur linux-64 verfügbar (kein osx-Build) -- ausschließlich für den Einsatz
-# auf PALMA gedacht. Lokal auf macOS wird dieses Env nicht angelegt; die
-# krakenuniq-Rule bleibt lokal deaktiviert (siehe config/config.yaml:
-# krakenuniq.enabled).
+# auf PALMA gedacht. Lokal auf macOS wird dieses Env nicht angelegt; KrakenUniq
+# bleibt lokal deaktiviert (siehe scripts/config.sh: KRAKENUNIQ_ENABLED).
 name: nanopore-krakenuniq
 channels:
   - bioconda
   - conda-forge
+  - nodefaults   # verhindert Konflikte, wenn "defaults" global konfiguriert ist (z.B. auf PALMA)
 dependencies:
   - krakenuniq=1.0.4
