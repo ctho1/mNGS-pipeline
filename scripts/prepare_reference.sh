@@ -42,6 +42,13 @@ export PATH="$ENV_ALIGN/bin:$PATH"
 
 [ -s "$HG38_FASTA.fai" ] || samtools faidx "$HG38_FASTA"
 
+# minimap2 kommt auf PALMA aus dem Modulsystem (nicht aus dem conda-align-
+# Env); module purge löscht keine manuell gesetzten PATH-Einträge, samtools
+# oben bleibt also weiter über conda erreichbar. Ohne Modulsystem (z.B.
+# lokaler Testlauf ohne SLURM) wird das übersprungen -- dann kommt minimap2
+# aus dem conda-align-Env.
+command -v module >/dev/null 2>&1 && eval "$MINIMAP2_MODULE_PREFIX"
+
 if [ ! -s "$HG38_MMI_NANOPORE" ]; then
     echo "Baue minimap2-Index (map-ont) ..."
     minimap2 -x map-ont -t "$THREADS" -d "$HG38_MMI_NANOPORE" "$HG38_FASTA"
