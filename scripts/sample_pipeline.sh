@@ -63,12 +63,15 @@ fi
 echo "--- Alignment (minimap2 -ax $PRESET) ---"
 BAM="$OUT/$SAMPLE.hg38.bam"
 export PATH="$ENV_ALIGN/bin:$PATH"
-# minimap2 kommt auf PALMA aus dem Modulsystem (nicht aus dem conda-align-
-# Env); module purge löscht keine manuell gesetzten PATH-Einträge, samtools
-# bleibt also weiter über conda erreichbar. Ohne Modulsystem (z.B. lokaler
-# Testlauf ohne SLURM) wird das übersprungen -- dann kommt minimap2 aus dem
-# conda-align-Env.
-command -v module >/dev/null 2>&1 && eval "$MINIMAP2_MODULE_PREFIX"
+# minimap2 UND samtools kommen auf PALMA aus dem Modulsystem (nicht aus dem
+# conda-align-Env, das dort nur noch readCounter/hmmcopy liefert -- samtools
+# ließ sich über conda wegen eines libdeflate/htslib-Konflikts nicht
+# zuverlässig installieren). Ohne Modulsystem (z.B. lokaler Testlauf ohne
+# SLURM) wird das übersprungen -- dann kommen beide aus dem conda-align-Env.
+if command -v module >/dev/null 2>&1; then
+    module purge
+    ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
+fi
 minimap2 -ax "$PRESET" --secondary=no -t "$THREADS" "$MMI" "${ALIGN_INPUT[@]}" \
     | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
 samtools index "$BAM"

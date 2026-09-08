@@ -59,12 +59,22 @@ ARCH="$(uname -m)"
 
 mkdir -p "$ENV_DIR"
 
-echo "=== align (minimap2, samtools, readCounter) ==="
-if [ ! -d "$ENV_DIR/align" ]; then
-    "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
-        "minimap2>=2.28,<3" "samtools>=1.20,<2" "hmmcopy=0.1.1"
+if [ "$OS" = "Linux" ]; then
+    echo "=== align (readCounter; minimap2/samtools kommen auf PALMA aus dem Modulsystem) ==="
+    if [ ! -d "$ENV_DIR/align" ]; then
+        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
+            "hmmcopy=0.1.1"
+    else
+        echo "  bereits vorhanden, überspringe"
+    fi
 else
-    echo "  bereits vorhanden, überspringe"
+    echo "=== align (minimap2, samtools, readCounter) ==="
+    if [ ! -d "$ENV_DIR/align" ]; then
+        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
+            "minimap2>=2.28,<3" "samtools>=1.20,<2" "hmmcopy=0.1.1"
+    else
+        echo "  bereits vorhanden, überspringe"
+    fi
 fi
 
 echo "=== report (python, reportlab, python-docx) ==="

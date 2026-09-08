@@ -128,6 +128,18 @@ Liegen unter `output/<Sample>/`:
 <Sample>_Nexus_Befund.docx
 ```
 
+## Tools aus dem PALMA-Modulsystem statt Conda
+
+`minimap2` und `samtools` kommen auf PALMA aus dem Modulsystem
+(`scripts/config.sh`: `MINIMAP2_MODULES`, `SAMTOOLS_MODULES`), nicht aus dem
+conda-align-Env -- über conda ließ sich `samtools` wegen eines
+libdeflate/htslib-Solver-Konflikts nicht zuverlässig installieren. Das
+conda-align-Env liefert auf Linux/PALMA daher nur noch `readCounter`
+(hmmcopy); lokal (kein Modulsystem, z.B. macOS-Tests) kommen weiterhin alle
+drei Tools aus conda. Bei abweichenden Modulnamen/-versionen in
+`scripts/config.sh` anpassen oder per Umgebungsvariable überschreiben, z.B.
+`SAMTOOLS_MODULES="palma/2024a GCC/13.3.0 SAMtools/1.22" bash run_pipeline.sh`.
+
 ## KrakenUniq-Referenzdatenbank
 
 Pfad ist unverändert aus dem ursprünglichen

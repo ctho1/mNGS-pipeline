@@ -23,10 +23,15 @@
 : "${KRAKENUNIQ_PRELOAD_SIZE:=64G}"
 : "${MODULE_PREFIX:=module purge && ml palma/2024a GCC/13.3.0 Jellyfish/2.3.1 bzip2/1.0.8}"
 
-# minimap2 kommt auf PALMA aus dem Modulsystem, nicht aus dem conda-Env
-# (align-Env liefert dort weiterhin samtools/readCounter). Wird direkt vor
-# jedem minimap2-Aufruf ge-eval't (module purge + load), analog zu MODULE_PREFIX.
-: "${MINIMAP2_MODULE_PREFIX:=module purge && ml palma/2024a GCCcore/13.3.0 minimap2/2.29}"
+# minimap2 UND samtools kommen auf PALMA aus dem Modulsystem, nicht aus dem
+# conda-align-Env (das liefert dort nur noch readCounter/hmmcopy -- samtools
+# konnte über conda wegen eines libdeflate/htslib-Solver-Konflikts nicht
+# zuverlässig installiert werden). Beide Modullisten werden zusammen vor dem
+# Alignment-Schritt geladen (module purge + ml beide Listen), da minimap2 und
+# samtools dort direkt gepiped werden. Reine Modullisten (ohne "module purge
+# && ml", das übernehmen die aufrufenden Skripte selbst).
+: "${MINIMAP2_MODULES:=palma/2024a GCCcore/13.3.0 minimap2/2.29}"
+: "${SAMTOOLS_MODULES:=palma/2024a GCC/13.3.0 SAMtools/1.21}"
 
 # ── Conda-Umgebungen (siehe scripts/setup_envs.sh) ──────────────────────────
 : "${CONDA_ENV_DIR:=$REPO_ROOT/conda_envs}"
@@ -82,7 +87,7 @@ HG38_MMI_ILLUMINA="$REPO_ROOT/references/hg38.analysisSet.sr.mmi"
 
 export MAIL_USER
 export KRAKENUNIQ_ENABLED KRAKENUNIQ_DB KRAKENUNIQ_BIN_DIR EXTRA_BIN_DIR KRAKENUNIQ_PRELOAD_SIZE MODULE_PREFIX
-export MINIMAP2_MODULE_PREFIX
+export MINIMAP2_MODULES SAMTOOLS_MODULES
 export ENV_ALIGN ENV_ICHORCNA ENV_REPORT ENV_KRAKENUNIQ
 export HG38_FASTA_URL HG38_FASTA HG38_MMI_NANOPORE HG38_MMI_ILLUMINA
 export THREADS_MINIMAP2 THREADS_SAMTOOLS_SORT THREADS_ICHORCNA THREADS_KRAKENUNIQ

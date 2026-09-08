@@ -1,11 +1,18 @@
 # Referenz/Dokumentation -- scripts/setup_envs.sh legt dieses Env tatsächlich
 # per `mamba create` (nicht `env create -f`) an, Paketliste dort synchron halten.
+#
+# Auf Linux/PALMA installiert setup_envs.sh hier NUR hmmcopy: minimap2 und
+# samtools kommen dort aus dem PALMA-Modulsystem (siehe scripts/config.sh,
+# MINIMAP2_MODULES/SAMTOOLS_MODULES) -- über conda ließ sich samtools wegen
+# eines libdeflate/htslib-Solver-Konflikts nicht zuverlässig installieren.
+# minimap2+samtools unten sind nur für lokale Läufe ohne Modulsystem (z.B.
+# macOS-Tests) relevant.
 name: nanopore-align
 channels:
   - bioconda
   - conda-forge
   - nodefaults   # verhindert Konflikte, wenn "defaults" global konfiguriert ist (z.B. auf PALMA)
 dependencies:
-  - minimap2>=2.28,<3     # auf PALMA ungenutzt (kommt dort aus dem Modulsystem), aber für lokale Läufe nötig
-  - samtools>=1.20,<2
-  - hmmcopy=0.1.1   # liefert readCounter (HMMcopy Utils) für ichorCNA
+  - minimap2>=2.28,<3     # nur lokal (kein Modulsystem) -- auf PALMA ungenutzt
+  - samtools>=1.20,<2     # nur lokal (kein Modulsystem) -- auf PALMA ungenutzt
+  - hmmcopy=0.1.1   # liefert readCounter (HMMcopy Utils) für ichorCNA -- überall installiert
