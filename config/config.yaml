@@ -1,0 +1,106 @@
+# =============================================================================
+# config.yaml -- einzige Stelle mit deployment-/nutzerspezifischen Werten.
+#
+# Alle anderen Pfade in diesem Repo sind relativ zum Repo-Root (portabel: der
+# komplette Ordner kann an eine beliebige Stelle auf PALMA oder in ein anderes
+# Nutzerkonto kopiert werden und funktioniert unverändert -- wie beim
+# ursprünglichen krakenuniq-report-Repo). Referenzgenom + Index werden beim
+# ersten Lauf automatisch nach references/ heruntergeladen/gebaut, falls dort
+# noch nicht vorhanden.
+#
+# Werte können per --config überschrieben werden, ohne diese Datei zu ändern,
+# z.B.:
+#   snakemake --config threads=8
+#   snakemake --config 'krakenuniq={"enabled": false}'   # lokaler Testlauf ohne DB
+# =============================================================================
+
+# Ordner mit den Rohdaten. Zwei Layouts, automatisch erkannt (siehe README):
+#   - Nanopore: input/<sample>/*.fastq(.gz)      -- Unterordner, wird zu einer
+#               Datei konkateniert.
+#   - Illumina: input/<sample>_R1_001.fastq.gz + input/<sample>_R2_001.fastq.gz
+#               -- flach, Paar wird direkt (ohne Concat) aligned.
+input_dir: "input"
+
+# Arbeitsverzeichnis für generierte Daten. Default "." (Repo-Root) -- referenzen/,
+# results/, logs/, tmp/ liegen dann direkt im Repo (wie fastq/, log/, output/,
+# tmp/ im ursprünglichen krakenuniq-report). Für PALMA-Scratch oder um große
+# Dateien aus einem sync'ten Ordner (z.B. Sciebo) fernzuhalten, hier auf einen
+# anderen Pfad zeigen lassen, z.B. "/scratch/tmp/<user>/mNGS-pipeline".
+work_dir: "."
+
+# ── Conda-Umgebungen ──────────────────────────────────────────────────────
+# Werden einmalig von workflow/scripts/setup_envs.sh angelegt (siehe README).
+# Bewusst NICHT über Snakemakes automatisches --use-conda je Rule verwaltet:
+# r-ichorcna hat auf osx-arm64 (Apple Silicon) keinen Build (nur linux-64/
+# osx-64) und braucht dort ein separates osx-64-Env unter Rosetta 2. Auf
+# PALMA (linux-64) läuft alles nativ.
+envs:
+  align: "conda_envs/align"           # minimap2, samtools, hmmcopy (readCounter)
+  ichorcna: "conda_envs/ichorcna"     # r-base, r-ichorcna
+  report: "conda_envs/report"         # python, reportlab
+  krakenuniq: "conda_envs/krakenuniq" # krakenuniq (linux-64 -- auf macOS/arm64 nicht verfügbar)
+
+# ── Referenzgenom (hg38, UCSC No-Alt Analysis Set) ──────────────────────────
+# Wird bei Bedarf automatisch nach {work_dir}/references/ heruntergeladen.
+reference:
+  fasta_url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/analysisSet/hg38.analysisSet.fa.gz"
+  fasta: "hg38.analysisSet.fa"
+  # minimap2-Presets sind indexspezifisch gebacken -- getrennte .mmi je Plattform
+  mmi_pattern: "hg38.analysisSet.{preset}.mmi"
+  presets:
+    nanopore: "map-ont"
+    illumina: "sr"
+
+# ── Threads / Ressourcen (lokal; PALMA-Werte stehen im SLURM-Profil) ────────
+threads:
+  minimap2: 12
+  samtools_sort: 4
+  ichorcna: 4
+  krakenuniq: 12
+
+# ── ichorCNA ──────────────────────────────────────────────────────────────
+# Parameter übernommen von nanoDx (gitlab.com/pesk/nanoDx,
+# workflow/scripts/ichorCNA.R), der Nanopore-WGS-Pipeline hinter crossNN
+# (Yuan et al. 2025, Nat Cancer) -- selbe gepinnte Version r-ichorcna==0.5.1.
+# Übernommen: 1-Mb-Bins/-q20 für readCounter, normal/ploidy-Grid,
+# minMapScore, txnStrength/txnE, normalizeMaleX, estimateScPrevalence,
+# plotYLim. NICHT übernommen: genomeBuild/gcWig/mapWig/normalPanel bleiben
+# hg38 (nanoDx nutzt hg19) -- der Rest dieser Pipeline arbeitet konsistent
+# mit hg38. Immer MIT PoN (kein "ohne PoN"-Lauf, siehe nanoDx-Vorbild).
+ichorcna:
+  bin_size: 1000000
+  bin_label: "1000kb"
+  chrs: 'c(1:22,"X")'
+  chr_normalize: "c(1:22)"
+  chr_train: "c(1:22)"
+  genome_build: "hg38"
+  genome_style: "UCSC"
+  include_homd: false
+  normal: "c(0.5,0.6,0.7,0.8,0.9,0.95,0.99)"
+  ploidy: "c(2,3)"
+  min_map_score: 0.75
+  txn_strength: 10000
+  txn_e: 0.9999
+  normalize_male_x: false
+  estimate_sc_prevalence: false
+  plot_y_lim: "c(-2,4)"
+  # Dateinamen im ichorCNA-Paket (extdata/), nicht separat heruntergeladen
+  extdata:
+    gc_wig: "gc_hg38_1000kb.wig"
+    map_wig: "map_hg38_1000kb.wig"
+    centromere: "GRCh38.GCA_000001405.2_centromere_acen.txt"
+    normal_panel: "HD_ULP_PoN_hg38_1Mb_normAutosomes_median.rds"
+
+# ── KrakenUniq ──────────────────────────────────────────────────────────────
+# Läuft auf den non-human (hg38-unmapped) Reads. Pfade unverändert aus dem
+# ursprünglichen krakenuniq-report/scripts/config.sh übernommen.
+krakenuniq:
+  enabled: true
+  db: "/scratch/tmp/thomachr/references/krakenuniq/microbial_db"
+  bin_dir: "/scratch/tmp/thomachr/software/krakenuniq"
+  extra_bin_dir: "/home/t/thomachr/bin"
+  preload_size: "64G"
+  module_prefix: "module purge && ml palma/2024a GCC/13.3.0 Jellyfish/2.3.1 bzip2/1.0.8"
+
+# Genus-Prävalenz-/z-Score-Referenzdaten für den Metagenomics-Report
+# (analysis/*.csv, analysis/reference_meta.json) -- siehe README.

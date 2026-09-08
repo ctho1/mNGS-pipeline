@@ -1,0 +1,16 @@
+# Rohdaten & generierte Ergebnisse -- nie committen (Patientendaten!)
+/input/
+/references/
+/results/
+/logs/
+/tmp/
+/benchmarks/
+/conda_envs/
+
+.snakemake/
+*.pdf
+*.docx
+*.RData
+__pycache__/
+*.pyc
+.DS_Store

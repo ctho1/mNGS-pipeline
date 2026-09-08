@@ -1,0 +1,8 @@
+name: nanopore-align
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - minimap2=2.31
+  - samtools=1.24
+  - hmmcopy=0.1.1   # liefert readCounter (HMMcopy Utils) für ichorCNA
