@@ -11,8 +11,9 @@ import sys
 from datetime import date
 
 
-def parse_flagstat(path):
-    text = open(path).read()
+def parse_flagstat(path, initial_reads, unaligned_reads):
+    with open(path) as fh:
+        text = fh.read()
     primary_total = primary_mapped = None
     for line in text.splitlines():
         m = re.match(r"^(\d+)\s*\+\s*\d+\s+primary$", line.strip())
@@ -26,14 +27,27 @@ def parse_flagstat(path):
         primary_total = int(m.group(1)) if m else 0
         m = re.search(r"^(\d+)\s*\+\s*\d+\s+mapped", text, re.MULTILINE)
         primary_mapped = int(m.group(1)) if m else 0
-    non_human = primary_total - primary_mapped
     return {
-        "total_reads": primary_total,
+        "total_reads": initial_reads,
+        "alignment_total_reads": primary_total,
         "human_reads": primary_mapped,
-        "non_human_reads": non_human,
-        "pct_human": round(100 * primary_mapped / primary_total, 2) if primary_total else 0.0,
-        "pct_non_human": round(100 * non_human / primary_total, 2) if primary_total else 0.0,
+        "alignment_unmapped_reads": primary_total - primary_mapped,
+        "unaligned_reads": unaligned_reads,
+        "pct_human": round(100 * primary_mapped / initial_reads, 2) if initial_reads else 0.0,
+        "pct_unaligned": round(100 * unaligned_reads / initial_reads, 2) if initial_reads else 0.0,
     }
+
+
+def parse_read_counts(path):
+    counts = {}
+    with open(path) as fh:
+        for line in fh:
+            key, value = line.rstrip("\n").split("\t", 1)
+            counts[key] = int(value)
+    missing = {"initial_reads", "unaligned_reads"} - counts.keys()
+    if missing:
+        raise ValueError(f"Fehlende Read-Zahlen in {path}: {', '.join(sorted(missing))}")
+    return counts
 
 
 def parse_ichorcna_params(path):
@@ -103,6 +117,7 @@ def main():
     ap.add_argument("--sample", required=True)
     ap.add_argument("--platform", required=True, choices=["nanopore", "illumina"])
     ap.add_argument("--flagstat", required=True)
+    ap.add_argument("--read-counts", required=True)
     ap.add_argument("--ichorcna-params", required=True)
     ap.add_argument("--ichorcna-plot", required=True)
     ap.add_argument("--krakenuniq-report", default="")
@@ -116,14 +131,19 @@ def main():
 
     os.makedirs(os.path.dirname(args.output_pdf) or ".", exist_ok=True)
 
-    host = parse_flagstat(args.flagstat)
+    read_counts = parse_read_counts(args.read_counts)
+    host = parse_flagstat(
+        args.flagstat,
+        read_counts["initial_reads"],
+        read_counts["unaligned_reads"],
+    )
     cnv = parse_ichorcna_params(args.ichorcna_params)
     cnv["plot_path"] = args.ichorcna_plot
     extra = {"host": host, "cnv": cnv}
 
     krakenuniq_ran = bool(args.krakenuniq_report) and os.path.exists(args.krakenuniq_report)
     report_text = open(args.krakenuniq_report).read() if krakenuniq_ran else None
-    today = date.today().strftime("%d. %B %Y").lstrip("0")
+    today = date.today().strftime("%d.%m.%Y")
 
     generate_pdf(
         output_path=args.output_pdf,
@@ -165,7 +185,8 @@ def main():
         },
         "krakenuniq": {
             "enabled": krakenuniq_ran,
-            "input": "all reads",
+            "input": "hg19-unaligned reads",
+            "input_reads": host["unaligned_reads"],
             **(krakenuniq_json or {}),
         },
     }

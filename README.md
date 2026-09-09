@@ -81,9 +81,9 @@ Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
 
 `sample_pipeline.sh` ist **resumable**: jeder Schritt (Concat, Alignment,
-Host-Depletion, ichorCNA, KrakenUniq) prüft zuerst, ob sein Ergebnis in
-`tmp/<Sample>/` bzw. `output/<Sample>/` schon vorhanden ist, und überspringt
-ihn dann. Ein
+Host-Depletion, FASTQ-Read-Zählung, ichorCNA, KrakenUniq) prüft zuerst, ob
+sein Ergebnis in `tmp/<Sample>/` bzw. `output/<Sample>/` schon vorhanden ist,
+und überspringt ihn dann. Ein
 erneuter `bash run_pipeline.sh` für eine bereits (teilweise) verarbeitete
 Probe wiederholt also nur die fehlenden Schritte und rendert am Ende den
 Report neu -- praktisch nach einem abgebrochenen Lauf oder um z.B.
@@ -113,6 +113,7 @@ nach dem Lauf liegen, können bei Bedarf gelöscht werden):
 <Sample>.hg19.bam(.bai), .flagstat.txt
 <Sample>.nonhuman.fastq.gz                         # Nanopore
 <Sample>.nonhuman_R1.fastq.gz, .nonhuman_R2.fastq.gz  # Illumina
+<Sample>.read_counts.tsv                           # initial + an KrakenUniq
 <Sample>.params.txt / .seg.txt / .cna.seg, <Sample>/<Sample>_genomeWide.png
 ```
 

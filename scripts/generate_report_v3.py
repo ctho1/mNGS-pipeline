@@ -51,6 +51,7 @@ C_RULE_DARK   = HexColor("#C7C7CC")
 C_TILE_BLUE   = HexColor("#0071E3")
 C_TILE_GREEN  = HexColor("#34C759")
 C_TILE_GREY   = HexColor("#636366")
+C_TILE_PURPLE = HexColor("#5856D6")
 
 C_GREEN_FILL  = HexColor("#F0FDF4")
 C_GREEN_TEXT  = HexColor("#1A7F3C")
@@ -1338,66 +1339,63 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
         if plot_path and os.path.exists(plot_path):
             story.append(Spacer(1, 1 * mm))
             story.append(Image(plot_path, width=CW, height=CW * 0.32))
-            gender = cnv.get("gender")
-            if gender:
-                st_gender = S("_gdr", fontName="Helvetica", fontSize=7,
-                               textColor=C_LIGHT, alignment=TA_LEFT, leading=9)
-                story.append(P(f"Ermitteltes Geschlecht: {gender}", st_gender))
-
-    if not krakenuniq_ran:
-        # Rest der Funktion ist KrakenUniq-spezifisch (Stat-Tiles/Top-Hits/
-        # Supplement/Legende/Referenzen); CNV-Profil wird hier stattdessen
-        # direkt gezeigt, da es keine Top-Hits gibt, über/unter denen es
-        # sonst platziert würde.
-        if cnv:
-            render_cnv_section()
-        story.append(P(
-            "KrakenUniq wurde für diese Probe nicht ausgeführt (z.B. lokaler "
-            "Testlauf ohne Referenzdatenbank). CNV-Ergebnisse sind oben aufgeführt.",
-            st_body))
-        story.append(Spacer(1, 3 * mm))
-        return story
 
     # ── STAT TILES (schmaler) ───────────────────────────────────────────
+    host = extra.get("host", {})
+    initial_reads = host.get("total_reads", parsed["total_all"])
+    human_reads = host.get("human_reads", parsed["total_human"])
+    unaligned_reads = host.get(
+        "unaligned_reads", host.get("non_human_reads", parsed["total_all"]))
+    pct_human = 100 * human_reads / initial_reads if initial_reads else 0.0
+    pct_unaligned = 100 * unaligned_reads / initial_reads if initial_reads else 0.0
+
+    gender = cnv.get("gender") if cnv else None
+    gender_names = {"male": "Männlich", "female": "Weiblich"}
+    gender_display = gender_names.get(str(gender).lower(), gender) if gender else "Nicht bestimmt"
+
     tile_data = [
         (C_TILE_BLUE,
          "READS GESAMT",
-         fmt_num(parsed["total_all"]),
-         ""),
+         fmt_num(initial_reads),
+         "Initiale FASTQ-Dateien"),
         (C_TILE_GREEN,
-         "KLASSIFIZIERT",
-         f"{parsed['pct_classified']:.1f}%",
-         fmt_num(parsed["total_classified"]) + " Reads"),
+         "HUMANE READS",
+         fmt_num(human_reads),
+         f"{pct_human:.1f}% gemäß hg19-Alignment"),
         (HexColor("#30A46C"),
-         "HUMAN",
-         f"{parsed['pct_human']:.1f}%",
-         fmt_num(parsed["total_human"]) + " Reads"),
+         "UNALIGNED READS",
+         fmt_num(unaligned_reads),
+         f"{pct_unaligned:.1f}% an KrakenUniq"),
         (C_TILE_GREY,
          "UNKLASSIFIZIERT",
          f"{parsed['pct_unclassified']:.1f}%",
          fmt_num(parsed["total_unclassified"]) + " Reads"),
+        (C_TILE_PURPLE,
+         "GESCHLECHT",
+         str(gender_display),
+         "ichorCNA-Prognose"),
     ]
 
     def tile_cell(colour, label, big, sub):
-        white_lbl  = S("_tl", fontName="Helvetica-Bold",  fontSize=6,
-                        textColor=HexColor("#FFFFFFBB"), leading=7,
+        white_lbl  = S("_tl", fontName="Helvetica-Bold",  fontSize=5.5,
+                        textColor=HexColor("#FFFFFFBB"), leading=6.5,
                         letterSpacing=0.5, spaceAfter=1*mm)
-        white_big  = S("_tb", fontName="Helvetica-Bold",  fontSize=14,
-                        textColor=white, leading=17, spaceAfter=0)
-        white_sub  = S("_ts", fontName="Helvetica",       fontSize=6.5,
-                        textColor=HexColor("#FFFFFFAA"), leading=8, spaceAfter=0)
+        white_big  = S("_tb", fontName="Helvetica-Bold",  fontSize=13,
+                        textColor=white, leading=16, spaceAfter=0)
+        white_sub  = S("_ts", fontName="Helvetica",       fontSize=6,
+                        textColor=HexColor("#FFFFFFAA"), leading=7.5, spaceAfter=0)
         items = [P(label, white_lbl), P(big, white_big)]
         if sub:
             items.append(P(sub, white_sub))
         return items
 
     tile_cells  = [[tile_cell(*td) for td in tile_data]]
-    tile_col_w  = CW / 4 - 1*mm
-    tile_tbl    = Table(tile_cells, colWidths=[tile_col_w]*4, rowHeights=[13*mm])
+    tile_col_w  = CW / len(tile_data) - 0.8*mm
+    tile_tbl    = Table(tile_cells, colWidths=[tile_col_w]*len(tile_data), rowHeights=[13*mm])
     ts_cmds = [
         ("VALIGN",       (0,0), (-1,-1), "MIDDLE"),
-        ("LEFTPADDING",  (0,0), (-1,-1), 3.5*mm),
-        ("RIGHTPADDING", (0,0), (-1,-1), 2.5*mm),
+        ("LEFTPADDING",  (0,0), (-1,-1), 2.5*mm),
+        ("RIGHTPADDING", (0,0), (-1,-1), 1.5*mm),
         ("TOPPADDING",   (0,0), (-1,-1), 2*mm),
         ("BOTTOMPADDING",(0,0), (-1,-1), 2*mm),
         ("ROUNDEDCORNERS", [4]),
@@ -1407,6 +1405,18 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     tile_tbl.setStyle(TableStyle(ts_cmds))
     story.append(tile_tbl)
     story.append(HR(3*mm, 1*mm))
+
+    if not krakenuniq_ran:
+        # KrakenUniq-spezifische Tabellen ausblenden; Kacheln und CNV-Profil
+        # bleiben sichtbar, da beide aus vorgelagerten Schritten stammen.
+        if cnv:
+            render_cnv_section()
+        story.append(P(
+            "KrakenUniq wurde für diese Probe nicht ausgeführt (z.B. lokaler "
+            "Testlauf ohne Referenzdatenbank). CNV-Ergebnisse sind oben aufgeführt.",
+            st_body))
+        story.append(Spacer(1, 3 * mm))
+        return story
 
     # ── CNV-Profil -- direkt oberhalb der Top-Hits ──────────────────────
     if cnv:
@@ -1821,16 +1831,16 @@ def generate_pdf(output_path, report_text=None, sample_name=None, date=None,
     if not krakenuniq_ran:
         parsed = _empty_parsed()
         s_name = sample_name or "Unbekannte Probe"
-        s_date = date or dt_date.today().strftime("%d. %B %Y").lstrip("0")
+        s_date = date or dt_date.today().strftime("%d.%m.%Y")
     elif report_text is None:
         # Demo data mirroring Barcode 40 analysis
         parsed = _demo_parsed()
         s_name = "PBK06944 · Barcode 40"
-        s_date = "10. April 2026"
+        s_date = "10.04.2026"
     else:
         parsed = parse_report(report_text)
         s_name = sample_name or "Unbekannte Probe"
-        s_date = date or dt_date.today().strftime("%d. %B %Y").lstrip("0")
+        s_date = date or dt_date.today().strftime("%d.%m.%Y")
 
     counter = _Counter()  # instance variable, safe for batch usage
 
@@ -1963,8 +1973,9 @@ if __name__ == "__main__":
                          help="Host-Depletion: total reads before hg19-Alignment")
     parser.add_argument("--human-reads", type=int, default=None,
                          help="Host-Depletion: reads mapped to hg19")
-    parser.add_argument("--non-human-reads", type=int, default=None,
-                         help="Host-Depletion: reads NOT mapped to hg19")
+    parser.add_argument("--unaligned-reads", "--non-human-reads", dest="unaligned_reads",
+                         type=int, default=None,
+                         help="Reads passed to KrakenUniq after host depletion")
     parser.add_argument("--cnv-tumor-fraction", default=None)
     parser.add_argument("--cnv-ploidy", default=None)
     parser.add_argument("--cnv-gender", default=None)
@@ -1989,7 +2000,7 @@ if __name__ == "__main__":
         sample_name = os.path.basename(args.input).replace(".krakenuniq.report.txt", "")
 
     # Date fallback
-    report_date = args.date or _date.today().strftime("%d. %B %Y").lstrip("0")
+    report_date = args.date or _date.today().strftime("%d.%m.%Y")
 
     # Read report text
     report_text = None
@@ -2001,15 +2012,15 @@ if __name__ == "__main__":
     # KrakenUniq); each sub-dict is only attached if its values were passed.
     extra = {}
     if args.total_reads is not None and args.human_reads is not None \
-            and args.non_human_reads is not None:
+            and args.unaligned_reads is not None:
         pct_human = 100 * args.human_reads / args.total_reads if args.total_reads else 0.0
-        pct_non_human = 100 * args.non_human_reads / args.total_reads if args.total_reads else 0.0
+        pct_unaligned = 100 * args.unaligned_reads / args.total_reads if args.total_reads else 0.0
         extra["host"] = {
             "total_reads": args.total_reads,
             "human_reads": args.human_reads,
-            "non_human_reads": args.non_human_reads,
+            "unaligned_reads": args.unaligned_reads,
             "pct_human": pct_human,
-            "pct_non_human": pct_non_human,
+            "pct_unaligned": pct_unaligned,
         }
     if any([args.cnv_tumor_fraction, args.cnv_ploidy, args.cnv_gender,
             args.cnv_coverage, args.cnv_plot]):

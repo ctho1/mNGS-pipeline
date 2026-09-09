@@ -20,7 +20,7 @@ TMP="tmp/$SAMPLE"
 OUT="output/$SAMPLE"
 mkdir -p "$OUT"
 
-for f in "$TMP/$SAMPLE.flagstat.txt" "$TMP/$SAMPLE.params.txt" "$TMP/$SAMPLE/${SAMPLE}_genomeWide.png"; do
+for f in "$TMP/$SAMPLE.flagstat.txt" "$TMP/$SAMPLE.read_counts.tsv" "$TMP/$SAMPLE.params.txt" "$TMP/$SAMPLE/${SAMPLE}_genomeWide.png"; do
     [ -s "$f" ] || { echo "FEHLER: $f fehlt -- Alignment/ichorCNA muss zuerst laufen" >&2; exit 1; }
 done
 
@@ -31,6 +31,7 @@ export PATH="$ENV_REPORT/bin:$PATH"
 python3 scripts/build_report.py \
     --sample "$SAMPLE" --platform "$PLATFORM" \
     --flagstat "$TMP/$SAMPLE.flagstat.txt" \
+    --read-counts "$TMP/$SAMPLE.read_counts.tsv" \
     --ichorcna-params "$TMP/$SAMPLE.params.txt" \
     --ichorcna-plot "$TMP/$SAMPLE/${SAMPLE}_genomeWide.png" \
     --krakenuniq-report "$KU_REPORT" \

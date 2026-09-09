@@ -138,6 +138,32 @@ else
     fi
 fi
 
+# Die beiden exakten FASTQ-Zahlen werden einmalig für Report-Rebuilds
+# gespeichert. Bei Illumina zählen R1 und R2 jeweils als einzelne Reads.
+READ_COUNTS="$TMP/$SAMPLE.read_counts.tsv"
+READ_COUNTS_CURRENT=false
+if [ -s "$READ_COUNTS" ]; then
+    READ_COUNTS_CURRENT=true
+    for reads_file in "${ALIGN_INPUT[@]}" "${KU_READS[@]}"; do
+        if [ ! "$READ_COUNTS" -nt "$reads_file" ]; then
+            READ_COUNTS_CURRENT=false
+            break
+        fi
+    done
+fi
+
+if [ "$READ_COUNTS_CURRENT" = "true" ]; then
+    echo "--- Read-Zählung: $READ_COUNTS bereits aktuell, überspringe ---"
+else
+    echo "--- Reads in initialen und host-depletierten FASTQs zählen ---"
+    INITIAL_READS=$(python3 scripts/count_fastq_reads.py "${ALIGN_INPUT[@]}")
+    UNALIGNED_READS=$(python3 scripts/count_fastq_reads.py "${KU_READS[@]}")
+    READ_COUNTS_TMP="$TMP/$SAMPLE.read_counts.tmp.tsv"
+    printf 'initial_reads\t%s\nunaligned_reads\t%s\n' \
+        "$INITIAL_READS" "$UNALIGNED_READS" > "$READ_COUNTS_TMP"
+    mv "$READ_COUNTS_TMP" "$READ_COUNTS"
+fi
+
 # ── 4. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
 CNV_PARAMS="$TMP/$SAMPLE.params.txt"
 CNV_SEG="$TMP/$SAMPLE.seg.txt"
