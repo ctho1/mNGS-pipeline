@@ -77,6 +77,14 @@ KRAKENUNIQ_ENABLED=false bash run_pipeline.sh      # lokaler Test ohne DB
 Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
 
+`sample_pipeline.sh` ist **resumable**: jeder Schritt (Concat, Alignment,
+ichorCNA, KrakenUniq) prüft zuerst, ob sein Ergebnis in `tmp/<Sample>/` bzw.
+`output/<Sample>/` schon vorhanden ist, und überspringt ihn dann. Ein
+erneuter `bash run_pipeline.sh` für eine bereits (teilweise) verarbeitete
+Probe wiederholt also nur die fehlenden Schritte und rendert am Ende den
+Report neu -- praktisch nach einem abgebrochenen Lauf oder um z.B.
+KrakenUniq nachträglich zu aktivieren, ohne Alignment/ichorCNA zu wiederholen.
+
 **Nur Report neu erzeugen** (z.B. nach einer Anpassung am PDF-Layout), ohne
 Alignment/ichorCNA/KrakenUniq erneut laufen zu lassen -- braucht die
 Zwischendateien in `tmp/<Sample>/` (siehe unten):
