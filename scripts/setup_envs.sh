@@ -7,7 +7,7 @@
 #
 # Nutzt `mamba create` statt `mamba env create -f`: die "env"-Subcommand
 # unterstützt in älteren mamba-Versionen (u.a. PALMA) kein
-# --override-channels. --channel-priority=flexible umgeht außerdem einen
+# --override-channels. --no-channel-priority umgeht außerdem einen
 # libmamba-Solver-Bug (mamba <2, sichtbar an "SOLVER_RULE_STRICT_REPO_
 # PRIORITY not implemented"-Warnungen), der mit channel_priority=strict in
 # der globalen .condarc zu spurious "unlösbar"-Fehlern führt (z.B.
@@ -49,7 +49,7 @@ ARCH="$(uname -m)"
 
 mkdir -p "$ENV_DIR"
 
-MAMBA_FLAGS=(--override-channels --channel-priority=flexible)
+MAMBA_FLAGS=(--override-channels --no-channel-priority)
 
 if [ "$OS" = "Linux" ]; then
     echo "=== align (readCounter; minimap2/bwa-mem2/samtools kommen auf PALMA aus dem Modulsystem) ==="
