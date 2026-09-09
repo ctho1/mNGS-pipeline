@@ -1326,64 +1326,54 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     story.append(mt)
     story.append(HR(1.5*mm, 2*mm))
 
-    # ── HOST-DEPLETION & CNV (aus vorgeschalteter Alignment-/ichorCNA-Stufe,
-    #    nur vorhanden wenn von build_report.py übergeben) ──────────────────
-    host = extra.get("host")
+    # ── CNV-PROFIL (aus vorgeschalteter ichorCNA-Stufe, nur vorhanden wenn
+    #    von build_report.py übergeben) -- Platzierung direkt oberhalb der
+    #    Top-Hits, siehe unten; im KrakenUniq-nicht-ausgeführt-Fall gleich
+    #    hier, da es dort keine Top-Hits gibt. ──────────────────────────────
     cnv = extra.get("cnv")
-    if host or cnv:
-        story.append(P("Host-Depletion &amp; Kopienzahl-Profil (hg19)", st_section))
 
-        if host:
-            h_tbl = Table([
-                ["Reads gesamt", "human (hg19)", "non-human (hg19-unmapped)"],
-                [fmt_num(host["total_reads"]),
-                 f"{fmt_num(host['human_reads'])} ({host['pct_human']:.1f}%)",
-                 f"{fmt_num(host['non_human_reads'])} ({host['pct_non_human']:.1f}%)"],
-            ], colWidths=[CW / 3] * 3)
-            h_tbl.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, 0), C_NAVY),
-                ("TEXTCOLOR",     (0, 0), (-1, 0), white),
-                ("FONTSIZE",      (0, 0), (-1, -1), 8),
-                ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-                ("GRID",          (0, 0), (-1, -1), 0.4, C_LIGHT),
-                ("TOPPADDING",    (0, 0), (-1, -1), 2 * mm),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
-            ]))
-            story.append(h_tbl)
-            story.append(Spacer(1, 2 * mm))
-
-        if cnv:
-            c_tbl = Table([
-                ["Tumor Fraction", "Ploidy", "Gender", "Coverage"],
-                [cnv.get("tumor_fraction") or "-", cnv.get("ploidy") or "-",
-                 cnv.get("gender") or "-", cnv.get("coverage") or "-"],
-            ], colWidths=[CW / 4] * 4)
-            c_tbl.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, 0), C_NAVY),
-                ("TEXTCOLOR",     (0, 0), (-1, 0), white),
-                ("FONTSIZE",      (0, 0), (-1, -1), 8),
-                ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-                ("GRID",          (0, 0), (-1, -1), 0.4, C_LIGHT),
-                ("TOPPADDING",    (0, 0), (-1, -1), 2 * mm),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
-            ]))
-            story.append(c_tbl)
-            story.append(P(
-                "ichorCNA, hg19-Panel-of-Normals, nanoDx-Parameter (r-ichorcna 0.5.1) "
-                "&mdash; kein gematchtes Normalgewebe.", st_subtitle))
-            plot_path = cnv.get("plot_path")
-            if plot_path and os.path.exists(plot_path):
-                story.append(Spacer(1, 1 * mm))
-                story.append(Image(plot_path, width=CW, height=CW * 0.32))
-
+    def render_cnv_section():
+        story.append(P("CNV-Profil (hg19)", st_section))
+        c_tbl = Table([
+            ["Tumor Fraction", "Ploidy", "Coverage"],
+            [cnv.get("tumor_fraction") or "-", cnv.get("ploidy") or "-",
+             cnv.get("coverage") or "-"],
+        ], colWidths=[CW / 3] * 3)
+        c_tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), C_NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), white),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, C_LIGHT),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2 * mm),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
+        ]))
+        story.append(c_tbl)
+        story.append(P(
+            "ichorCNA, hg19-Panel-of-Normals, nanoDx-Parameter (r-ichorcna 0.5.1) "
+            "&mdash; kein gematchtes Normalgewebe.", st_subtitle))
+        plot_path = cnv.get("plot_path")
+        if plot_path and os.path.exists(plot_path):
+            story.append(Spacer(1, 1 * mm))
+            story.append(Image(plot_path, width=CW, height=CW * 0.32))
+            gender = cnv.get("gender")
+            if gender:
+                st_gender = S("_gdr", fontName="Helvetica", fontSize=7,
+                               textColor=C_LIGHT, alignment=TA_CENTER, leading=9)
+                story.append(P(f"Ermitteltes Geschlecht: {gender}", st_gender))
         story.append(HR(3 * mm, 1 * mm))
 
     if not krakenuniq_ran:
-        # Rest der Funktion ist KrakenUniq-spezifisch; Host-Depletion/CNV oben bleiben bestehen.
+        # Rest der Funktion ist KrakenUniq-spezifisch (Stat-Tiles/Top-Hits/
+        # Supplement/Legende/Referenzen); CNV-Profil wird hier stattdessen
+        # direkt gezeigt, da es keine Top-Hits gibt, über/unter denen es
+        # sonst platziert würde.
+        if cnv:
+            render_cnv_section()
         story.append(P(
             "KrakenUniq wurde für diese Probe nicht ausgeführt (z.B. lokaler "
-            "Testlauf ohne Referenzdatenbank). Host-Depletion- und CNV-Ergebnisse "
-            "sind oben aufgeführt.", st_body))
+            "Testlauf ohne Referenzdatenbank). CNV-Ergebnisse sind oben aufgeführt.",
+            st_body))
         story.append(Spacer(1, 3 * mm))
         return story
 
@@ -1436,6 +1426,10 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     tile_tbl.setStyle(TableStyle(ts_cmds))
     story.append(tile_tbl)
     story.append(HR(3*mm, 1*mm))
+
+    # ── CNV-Profil -- direkt oberhalb der Top-Hits ──────────────────────
+    if cnv:
+        render_cnv_section()
 
     # ── BEFUNDTABELLEN ────────────────────────────────────────────────────
     kingdoms = ["Viren", "Bakterien", "Pilze", "Parasiten"]

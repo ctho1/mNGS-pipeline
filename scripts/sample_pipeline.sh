@@ -112,37 +112,22 @@ Rscript scripts/run_ichorcna.R \
     --plotFileType png \
     --cores "$THREADS_ICHORCNA"
 
-CNV_PARAMS="$TMP/$SAMPLE.params.txt"
-CNV_PLOT="$TMP/$SAMPLE/${SAMPLE}_genomeWide.png"
-
 # ── 4. KrakenUniq (alle Reads, wie im ursprünglichen krakenuniq-report) ────
-KU_REPORT=""
 if [ "$KRAKENUNIQ_ENABLED" = "true" ]; then
     echo "--- KrakenUniq ---"
     eval "$MODULE_PREFIX"
     export PATH="$KRAKENUNIQ_BIN_DIR:$EXTRA_BIN_DIR:$ENV_KRAKENUNIQ/bin:$PATH"
-    KU_REPORT="$OUT/$SAMPLE.krakenuniq.report.txt"
     bash scripts/krakenuniq_run.sh "$KRAKENUNIQ_DB" "$THREADS_KRAKENUNIQ" "$KRAKENUNIQ_PRELOAD_SIZE" \
-        "$KU_REPORT" "$TMP" "${KU_READS[@]}"
+        "$OUT/$SAMPLE.krakenuniq.report.txt" "$TMP" "${KU_READS[@]}"
 else
     echo "--- KrakenUniq übersprungen (KRAKENUNIQ_ENABLED=$KRAKENUNIQ_ENABLED) ---"
 fi
 
-# ── 5. Report (PDF mit CNV-Plot + Alignment-Statistik, JSON, Nexus-Befund.docx) ──
+# ── 5. Report (PDF mit CNV-Plot + Top-Hits, JSON, Nexus-Befund.docx) ───────
+# Ausgelagert nach generate_sample_report.sh, das denselben Weg auch für ein
+# reines Report-Rebuild aus vorhandenen Zwischendateien nutzt (ohne
+# Alignment/ichorCNA/KrakenUniq neu laufen zu lassen).
 echo "--- Report ---"
-export PATH="$ENV_REPORT/bin:$PATH"
-python3 scripts/build_report.py \
-    --sample "$SAMPLE" --platform "$PLATFORM" \
-    --flagstat "$TMP/$SAMPLE.flagstat.txt" \
-    --ichorcna-params "$CNV_PARAMS" \
-    --ichorcna-plot "$CNV_PLOT" \
-    --krakenuniq-report "$KU_REPORT" \
-    --output-pdf "$OUT/$SAMPLE.metagenomics_report.pdf" \
-    --output-json "$OUT/$SAMPLE.summary.json" \
-    --output-docx "$OUT/${SAMPLE}_Nexus_Befund.docx"
+bash scripts/generate_sample_report.sh "$SAMPLE" "$PLATFORM"
 
 echo "=== Fertig: $SAMPLE ==="
-echo "  $OUT/$SAMPLE.metagenomics_report.pdf"
-echo "  $OUT/$SAMPLE.krakenuniq.report.txt"
-echo "  $OUT/$SAMPLE.summary.json"
-echo "  $OUT/${SAMPLE}_Nexus_Befund.docx"

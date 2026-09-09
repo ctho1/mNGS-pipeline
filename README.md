@@ -16,9 +16,11 @@ Pro Probe:
    übernommen (gleiche r-ichorcna-Version, selbst hg19-nativ).
 3. **KrakenUniq** auf allen Reads (wie im ursprünglichen krakenuniq-report --
    keine Host-Depletion vorab).
-4. **Report**: `{sample}.metagenomics_report.pdf` (Top-Hits + CNV-Plot +
-   Alignment-Statistik, via erweitertem `generate_report_v3.py`),
-   `{sample}.summary.json`, `{sample}_Nexus_Befund.docx` (Word-Vorlagenbefund).
+4. **Report**: `{sample}.metagenomics_report.pdf` (KrakenUniq-Übersicht,
+   CNV-Profil direkt darüber den Top-Hits, via erweitertem
+   `generate_report_v3.py`), `{sample}.summary.json`,
+   `{sample}_Nexus_Befund.docx` (Word-Vorlagenbefund). Lässt sich aus
+   vorhandenen Zwischendateien neu erzeugen, siehe unten.
 
 ## Struktur
 
@@ -29,6 +31,7 @@ scripts/
 ├── setup_envs.sh             # Conda-Envs anlegen (einmalig)
 ├── prepare_reference.sh      # sbatch-Job: hg19 + Indizes
 ├── sample_pipeline.sh        # sbatch-Job: Alignment -> ichorCNA -> KrakenUniq -> Report
+├── generate_sample_report.sh # nur der Report-Schritt (auch eigenständig nutzbar, siehe unten)
 ├── discover_samples.py, concat_fastq.sh, krakenuniq_run.sh, run_ichorcna.R
 ├── build_report.py           # PDF/JSON/docx
 └── generate_report_v3.py, kraken_tree.py
@@ -73,6 +76,14 @@ KRAKENUNIQ_ENABLED=false bash run_pipeline.sh      # lokaler Test ohne DB
 
 Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
+
+**Nur Report neu erzeugen** (z.B. nach einer Anpassung am PDF-Layout), ohne
+Alignment/ichorCNA/KrakenUniq erneut laufen zu lassen -- braucht die
+Zwischendateien in `tmp/<Sample>/` (siehe unten):
+
+```bash
+bash scripts/generate_sample_report.sh <Sample> nanopore   # oder: illumina
+```
 
 ## Ergebnisse
 
