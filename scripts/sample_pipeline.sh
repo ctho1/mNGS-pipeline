@@ -19,7 +19,7 @@
 #SBATCH --job-name=mngs
 #SBATCH --partition=normal
 #SBATCH --cpus-per-task=36
-#SBATCH --mem=80G
+#SBATCH --mem=120G
 #SBATCH --time=30:00
 #SBATCH --error=./log/%x_%j.err.txt
 #SBATCH --output=./log/%x_%j.out.txt
