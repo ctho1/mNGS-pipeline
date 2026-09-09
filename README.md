@@ -1,8 +1,8 @@
 # 🧬 mNGS Pipeline
 
 Automatisierte Metagenom-Analyse für **Oxford Nanopore** und **Illumina
-Paired-End**: humane Reads werden gegen hg19 ausgerichtet, ein CNV-Profil wird
-erstellt und ausschließlich die nicht ausgerichteten Reads werden mit
+Paired-End**: humane Reads werden gegen hg19 aligned, ein CNV-Profil wird
+erstellt und ausschließlich die unaligned Reads werden mit
 KrakenUniq klassifiziert.
 
 ```text
@@ -14,9 +14,9 @@ KrakenUniq klassifiziert.
 
 ## ✨ Auf einen Blick
 
-- 🔬 **Nanopore:** Chunk-Dateien werden zusammengeführt und mit `minimap2 -x map-ont` ausgerichtet.
-- 🧪 **Illumina:** R1/R2-Paare werden mit `bwa-mem2 mem` ausgerichtet; nur vollständig ungemappte Paare gelangen zu KrakenUniq.
-- 📊 **CNV:** ichorCNA analysiert das vollständige hg19-Alignment mit hg19-PoN.
+- 🔬 **Nanopore:** Chunk-Dateien werden zusammengeführt und mit `minimap2 -x map-ont` aligned.
+- 🧪 **Illumina:** R1/R2-Paare werden mit `bwa-mem2 mem` aligned; nur vollständig unaligned Read-Paare gelangen zu KrakenUniq.
+- 📊 **CNV:** ichorCNA analysiert das vollständige hg19-Alignment mit hg19-PoN, jedoch ohne gematchte Normalprobe.
 - 🦠 **Metagenomik:** KrakenUniq erhält ausschließlich Host-depletierte Reads.
 - ♻️ **Wiederaufnahme:** Fertige Schritte werden erkannt; unterbrochene Jobs laufen an der letzten vollständigen Stufe weiter.
 - 🖥️ **SLURM:** Auf PALMA wird pro Probe ein Job eingereicht; lokal läuft die Pipeline seriell.
@@ -27,11 +27,6 @@ Der PDF-Report zeigt initiale Reads, humane Reads, unaligned Reads,
 unklassifizierte Reads und die ichorCNA-Geschlechtsprognose. Darunter folgen
 CNV-Profil und priorisierte KrakenUniq-Treffer. Zusätzlich entstehen eine
 maschinenlesbare JSON-Zusammenfassung und ein DOCX-Befundentwurf.
-
-![Anonymisierte Demo des generierten PDF-Reports](docs/report-preview.png)
-
-<sub>Anonymisierte Darstellung mit integrierten Demo-Werten und synthetischem
-CNV-Verlauf – keine identifizierenden Probendaten.</sub>
 
 ## 🚀 Schnellstart
 
