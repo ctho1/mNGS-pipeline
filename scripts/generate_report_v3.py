@@ -1333,25 +1333,7 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     cnv = extra.get("cnv")
 
     def render_cnv_section():
-        story.append(P("CNV-Profil (hg19)", st_section))
-        c_tbl = Table([
-            ["Tumor Fraction", "Ploidy", "Coverage"],
-            [cnv.get("tumor_fraction") or "-", cnv.get("ploidy") or "-",
-             cnv.get("coverage") or "-"],
-        ], colWidths=[CW / 3] * 3)
-        c_tbl.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, 0), C_NAVY),
-            ("TEXTCOLOR",     (0, 0), (-1, 0), white),
-            ("FONTSIZE",      (0, 0), (-1, -1), 8),
-            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-            ("GRID",          (0, 0), (-1, -1), 0.4, C_LIGHT),
-            ("TOPPADDING",    (0, 0), (-1, -1), 2 * mm),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
-        ]))
-        story.append(c_tbl)
-        story.append(P(
-            "ichorCNA, hg19-Panel-of-Normals, nanoDx-Parameter (r-ichorcna 0.5.1) "
-            "&mdash; kein gematchtes Normalgewebe.", st_subtitle))
+        story.append(P("CNV Profil", st_section))
         plot_path = cnv.get("plot_path")
         if plot_path and os.path.exists(plot_path):
             story.append(Spacer(1, 1 * mm))
@@ -1359,9 +1341,8 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
             gender = cnv.get("gender")
             if gender:
                 st_gender = S("_gdr", fontName="Helvetica", fontSize=7,
-                               textColor=C_LIGHT, alignment=TA_CENTER, leading=9)
+                               textColor=C_LIGHT, alignment=TA_LEFT, leading=9)
                 story.append(P(f"Ermitteltes Geschlecht: {gender}", st_gender))
-        story.append(HR(3 * mm, 1 * mm))
 
     if not krakenuniq_ran:
         # Rest der Funktion ist KrakenUniq-spezifisch (Stat-Tiles/Top-Hits/
