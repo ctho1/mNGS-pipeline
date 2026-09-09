@@ -1,7 +1,7 @@
 #!/bin/bash
 # Analysepfad für eine Probe: Concat (nur Nanopore) -> hg19-Alignment ->
-# ichorCNA -> KrakenUniq (falls aktiv, auf allen Reads, wie im
-# ursprünglichen krakenuniq-report) -> Report.
+# Extraktion nicht-humaner Reads -> ichorCNA -> KrakenUniq (falls aktiv,
+# nur auf nicht-humanen Reads) -> Report.
 # Wird von run_pipeline.sh aufgerufen, nicht direkt.
 #
 # Jeder Schritt prüft zuerst, ob sein Ergebnis in tmp/<sample>/ bzw.
@@ -54,38 +54,41 @@ if [ "$PLATFORM" = "nanopore" ]; then
         bash scripts/concat_fastq.sh "$FASTQ" "${READS[@]}"
     fi
     ALIGN_INPUT=("$FASTQ")
-    KU_READS=("$FASTQ")
 elif [ "$PLATFORM" = "illumina" ]; then
     ALIGN_INPUT=("${READS[@]}")
-    KU_READS=("${READS[@]}")
 else
     echo "Unbekannte Plattform: $PLATFORM (erwartet: nanopore|illumina)" >&2
     exit 1
 fi
 
-# 2. Alignment gegen hg19 (nur für ichorCNA/Report-Statistik; KrakenUniq
-# unten bekommt unabhängig davon alle Reads, wie im ursprünglichen
-# krakenuniq-report -- keine Host-Depletion vorab).
+# 2. Alignment gegen hg19 für ichorCNA, Report-Statistik und Host-Depletion.
+# Das vollständige BAM bleibt erhalten, damit flagstat weiterhin alle Reads
+# als Nenner verwendet. Die nicht-humanen FASTQs werden danach daraus
+# extrahiert, ohne ein zweites Alignment durchzuführen.
 BAM="$TMP/$SAMPLE.hg19.bam"
 FLAGSTAT="$TMP/$SAMPLE.flagstat.txt"
 export PATH="$ENV_ALIGN/bin:$PATH"
+
+# Module auch bei einem Resume-Lauf laden: Die Host-Depletion benötigt
+# samtools selbst dann, wenn das Alignment-BAM bereits vorhanden ist.
+if command -v module >/dev/null 2>&1; then
+    module purge
+    if [ "$PLATFORM" = "nanopore" ]; then
+        ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
+    else
+        ml $BWA_MEM2_MODULES $SAMTOOLS_MODULES
+    fi
+fi
+
 if [ -s "$BAM" ] && [ -s "$BAM.bai" ] && [ -s "$FLAGSTAT" ]; then
     echo "--- Alignment: $BAM bereits vorhanden, überspringe ---"
 else
     echo "--- Alignment ($PLATFORM) ---"
     # Aligner + samtools kommen aus PALMA-Modulen, falls vorhanden, sonst conda.
     if [ "$PLATFORM" = "nanopore" ]; then
-        if command -v module >/dev/null 2>&1; then
-            module purge
-            ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
-        fi
         minimap2 -ax map-ont --secondary=no -t "$THREADS" "$HG19_MMI_NANOPORE" "${ALIGN_INPUT[@]}" \
             | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
     else
-        if command -v module >/dev/null 2>&1; then
-            module purge
-            ml $BWA_MEM2_MODULES $SAMTOOLS_MODULES
-        fi
         bwa-mem2 mem -t "$THREADS" "$HG19_BWA_MEM2_PREFIX" "${ALIGN_INPUT[@]}" \
             | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
     fi
@@ -93,7 +96,49 @@ else
     samtools flagstat "$BAM" > "$FLAGSTAT"
 fi
 
-# ── 3. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
+# ── 3. Nicht-humane Reads für KrakenUniq extrahieren ──────────────────────
+# Nanopore: jeder unmapped Read (SAM-Flag 0x4).
+# Illumina: nur vollständige Paare, bei denen Read und Mate unmapped sind
+# (0x4 + 0x8 = 0xC/12). Dadurch gelangen keine verwaisten Mates eines human
+# gemappten Fragments in die taxonomische Klassifikation.
+if [ "$PLATFORM" = "nanopore" ]; then
+    NONHUMAN_FASTQ="$TMP/$SAMPLE.nonhuman.fastq.gz"
+    KU_READS=("$NONHUMAN_FASTQ")
+
+    if [ -s "$NONHUMAN_FASTQ" ]; then
+        echo "--- Host-Depletion: $NONHUMAN_FASTQ bereits vorhanden, überspringe ---"
+    else
+        echo "--- Host-Depletion (Nanopore: unmapped Reads) ---"
+        NONHUMAN_FASTQ_TMP="$TMP/$SAMPLE.nonhuman.tmp.fastq.gz"
+        rm -f "$NONHUMAN_FASTQ_TMP"
+        samtools fastq -@ "$THREADS_SAMTOOLS_SORT" -f 4 \
+            -0 "$NONHUMAN_FASTQ_TMP" "$BAM"
+        mv "$NONHUMAN_FASTQ_TMP" "$NONHUMAN_FASTQ"
+    fi
+else
+    NONHUMAN_R1="$TMP/$SAMPLE.nonhuman_R1.fastq.gz"
+    NONHUMAN_R2="$TMP/$SAMPLE.nonhuman_R2.fastq.gz"
+    KU_READS=("$NONHUMAN_R1" "$NONHUMAN_R2")
+
+    if [ -s "$NONHUMAN_R1" ] && [ -s "$NONHUMAN_R2" ]; then
+        echo "--- Host-Depletion: nicht-humane Read-Paare bereits vorhanden, überspringe ---"
+    else
+        echo "--- Host-Depletion (Illumina: beide Mates unmapped) ---"
+        NONHUMAN_R1_TMP="$TMP/$SAMPLE.nonhuman_R1.tmp.fastq.gz"
+        NONHUMAN_R2_TMP="$TMP/$SAMPLE.nonhuman_R2.tmp.fastq.gz"
+        rm -f "$NONHUMAN_R1_TMP" "$NONHUMAN_R2_TMP"
+        samtools view -@ "$THREADS_SAMTOOLS_SORT" -u -f 12 "$BAM" \
+            | samtools collate -@ "$THREADS_SAMTOOLS_SORT" -u -O - \
+            | samtools fastq -@ "$THREADS_SAMTOOLS_SORT" \
+                -1 "$NONHUMAN_R1_TMP" \
+                -2 "$NONHUMAN_R2_TMP" \
+                -0 /dev/null -s /dev/null -n -
+        mv "$NONHUMAN_R1_TMP" "$NONHUMAN_R1"
+        mv "$NONHUMAN_R2_TMP" "$NONHUMAN_R2"
+    fi
+fi
+
+# ── 4. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
 CNV_PARAMS="$TMP/$SAMPLE.params.txt"
 CNV_SEG="$TMP/$SAMPLE.seg.txt"
 CNV_PLOT="$TMP/$SAMPLE/${SAMPLE}_genomeWide.png"
@@ -133,10 +178,21 @@ else
         --cores "$THREADS_ICHORCNA"
 fi
 
-# ── 4. KrakenUniq (alle Reads, wie im ursprünglichen krakenuniq-report) ────
+# ── 5. KrakenUniq (nur Reads ohne humanes Alignment) ──────────────────────
 KU_REPORT="$OUT/$SAMPLE.krakenuniq.report.txt"
 if [ "$KRAKENUNIQ_ENABLED" = "true" ]; then
+    KU_REPORT_CURRENT=false
     if [ -s "$KU_REPORT" ]; then
+        KU_REPORT_CURRENT=true
+        for reads_file in "${KU_READS[@]}"; do
+            if [ ! "$KU_REPORT" -nt "$reads_file" ]; then
+                KU_REPORT_CURRENT=false
+                break
+            fi
+        done
+    fi
+
+    if [ "$KU_REPORT_CURRENT" = "true" ]; then
         echo "--- KrakenUniq: $KU_REPORT bereits vorhanden, überspringe ---"
     else
         echo "--- KrakenUniq ---"
@@ -149,7 +205,7 @@ else
     echo "--- KrakenUniq übersprungen (KRAKENUNIQ_ENABLED=$KRAKENUNIQ_ENABLED) ---"
 fi
 
-# ── 5. Report (PDF mit CNV-Plot + Top-Hits, JSON, Nexus-Befund.docx) ───────
+# ── 6. Report (PDF mit CNV-Plot + Top-Hits, JSON, Nexus-Befund.docx) ───────
 # Läuft immer, auch wenn alle Schritte oben übersprungen wurden -- so lässt
 # sich der Report nach einer Layout-Änderung für eine bereits verarbeitete
 # Probe einfach durch erneuten Aufruf dieses Skripts neu rendern.

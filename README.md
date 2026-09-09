@@ -11,12 +11,15 @@ Pro Probe:
    und **Alignment** gegen hg19 -- Nanopore mit `minimap2 -ax map-ont`,
    Illumina mit `bwa-mem2 mem` (reuse des geteilten hg19-Index von
    ngs-tumor-pipeline, siehe unten).
-2. **CNV-Profil** mit ichorCNA (hg19-PoN, kein gematchtes Normalgewebe).
+2. **Host-Depletion** aus dem hg19-Alignment: bei Nanopore werden Reads mit
+   SAM-Flag `0x4` extrahiert; bei Illumina nur Paare, bei denen beide Mates
+   unmapped sind (`0x4 + 0x8 = 0xC`).
+3. **CNV-Profil** mit ichorCNA (hg19-PoN, kein gematchtes Normalgewebe).
    Parameter + Referenzdaten von [nanoDx](https://gitlab.com/pesk/nanoDx)
    übernommen (gleiche r-ichorcna-Version, selbst hg19-nativ).
-3. **KrakenUniq** auf allen Reads (wie im ursprünglichen krakenuniq-report --
-   keine Host-Depletion vorab).
-4. **Report**: `{sample}.metagenomics_report.pdf` (KrakenUniq-Übersicht,
+4. **KrakenUniq** ausschließlich auf diesen nicht-humanen Reads
+   beziehungsweise Read-Paaren.
+5. **Report**: `{sample}.metagenomics_report.pdf` (KrakenUniq-Übersicht,
    CNV-Profil direkt darüber den Top-Hits, via erweitertem
    `generate_report_v3.py`), `{sample}.summary.json`,
    `{sample}_Nexus_Befund.docx` (Word-Vorlagenbefund). Lässt sich aus
@@ -78,8 +81,9 @@ Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
 
 `sample_pipeline.sh` ist **resumable**: jeder Schritt (Concat, Alignment,
-ichorCNA, KrakenUniq) prüft zuerst, ob sein Ergebnis in `tmp/<Sample>/` bzw.
-`output/<Sample>/` schon vorhanden ist, und überspringt ihn dann. Ein
+Host-Depletion, ichorCNA, KrakenUniq) prüft zuerst, ob sein Ergebnis in
+`tmp/<Sample>/` bzw. `output/<Sample>/` schon vorhanden ist, und überspringt
+ihn dann. Ein
 erneuter `bash run_pipeline.sh` für eine bereits (teilweise) verarbeitete
 Probe wiederholt also nur die fehlenden Schritte und rendert am Ende den
 Report neu -- praktisch nach einem abgebrochenen Lauf oder um z.B.
@@ -107,6 +111,8 @@ nach dem Lauf liegen, können bei Bedarf gelöscht werden):
 
 ```
 <Sample>.hg19.bam(.bai), .flagstat.txt
+<Sample>.nonhuman.fastq.gz                         # Nanopore
+<Sample>.nonhuman_R1.fastq.gz, .nonhuman_R2.fastq.gz  # Illumina
 <Sample>.params.txt / .seg.txt / .cna.seg, <Sample>/<Sample>_genomeWide.png
 ```
 
