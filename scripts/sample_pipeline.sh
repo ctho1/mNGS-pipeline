@@ -1,7 +1,12 @@
 #!/bin/bash
-# Analysepfad für eine Probe: Concat (nur Nanopore) -> hg19-Alignment +
-# Host-Depletion -> ichorCNA -> KrakenUniq (falls aktiv) -> Report.
+# Analysepfad für eine Probe: Concat (nur Nanopore) -> hg19-Alignment ->
+# ichorCNA -> KrakenUniq (falls aktiv, auf allen Reads, wie im
+# ursprünglichen krakenuniq-report) -> Report.
 # Wird von run_pipeline.sh aufgerufen, nicht direkt.
+#
+# Zwischendateien (BAM, FASTQ, ichorCNA-Rohdaten) landen in tmp/<sample>/;
+# output/<sample>/ enthält nur die Deliverables (PDF, KrakenUniq-Report,
+# JSON, Nexus-Befund.docx).
 #
 # Usage:
 #   Nanopore:  sample_pipeline.sh nanopore <sample> <reads1.fastq.gz> [reads2 ...]
@@ -27,8 +32,9 @@ READS=("$@")
 
 THREADS=${SLURM_CPUS_PER_TASK:-$THREADS_MINIMAP2}
 
-mkdir -p "output/$SAMPLE" log "tmp/$SAMPLE"
+TMP="tmp/$SAMPLE"
 OUT="output/$SAMPLE"
+mkdir -p "$OUT" log "$TMP"
 
 echo "=== mNGS-Pipeline: $SAMPLE ($PLATFORM) ==="
 echo "Threads: $THREADS"
@@ -36,55 +42,46 @@ echo "Reads:   ${READS[*]}"
 
 # 1. Concat (nur Nanopore; Illumina-Paar wird direkt aligned)
 if [ "$PLATFORM" = "nanopore" ]; then
-    FASTQ="$OUT/$SAMPLE.fastq.gz"
+    FASTQ="$TMP/$SAMPLE.fastq.gz"
     bash scripts/concat_fastq.sh "$FASTQ" "${READS[@]}"
     ALIGN_INPUT=("$FASTQ")
+    KU_READS=("$FASTQ")
 elif [ "$PLATFORM" = "illumina" ]; then
     ALIGN_INPUT=("${READS[@]}")
+    KU_READS=("${READS[@]}")
 else
     echo "Unbekannte Plattform: $PLATFORM (erwartet: nanopore|illumina)" >&2
     exit 1
 fi
 
-# 2./3. Alignment + Host-Depletion in einem Durchgang: non-human Reads
-# werden per `tee` aus dem live SAM-Stream abgezweigt (parallel zu
-# `samtools sort`), statt das fertige BAM danach nochmal zu lesen.
-echo "--- Alignment + Host-Depletion ($PLATFORM) ---"
-BAM="$OUT/$SAMPLE.hg19.bam"
+# 2. Alignment gegen hg19 (nur für ichorCNA/Report-Statistik; KrakenUniq
+# unten bekommt unabhängig davon alle Reads, wie im ursprünglichen
+# krakenuniq-report -- keine Host-Depletion vorab).
+echo "--- Alignment ($PLATFORM) ---"
+BAM="$TMP/$SAMPLE.hg19.bam"
 export PATH="$ENV_ALIGN/bin:$PATH"
 # Aligner + samtools kommen aus PALMA-Modulen, falls vorhanden, sonst conda.
 if [ "$PLATFORM" = "nanopore" ]; then
-    NONHUMAN="$OUT/$SAMPLE.nonhuman.fastq.gz"
     if command -v module >/dev/null 2>&1; then
         module purge
         ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
     fi
     minimap2 -ax map-ont --secondary=no -t "$THREADS" "$HG19_MMI_NANOPORE" "${ALIGN_INPUT[@]}" \
-        | tee >(bash scripts/extract_nonhuman_se.sh "$NONHUMAN") \
         | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
-    wait
-    [ -s "$NONHUMAN" ] || { echo "FEHLER: $NONHUMAN wurde nicht erzeugt (Host-Depletion-Zweig fehlgeschlagen)" >&2; exit 1; }
-    KU_READS=("$NONHUMAN")
 else
-    R1="$OUT/$SAMPLE.nonhuman_R1.fastq.gz"
-    R2="$OUT/$SAMPLE.nonhuman_R2.fastq.gz"
     if command -v module >/dev/null 2>&1; then
         module purge
         ml $BWA_MEM2_MODULES $SAMTOOLS_MODULES
     fi
     bwa-mem2 mem -t "$THREADS" "$HG19_BWA_MEM2_PREFIX" "${ALIGN_INPUT[@]}" \
-        | tee >(bash scripts/extract_nonhuman_pe.sh "$R1" "$R2") \
         | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
-    wait
-    [ -s "$R1" ] && [ -s "$R2" ] || { echo "FEHLER: non-human R1/R2 wurden nicht erzeugt (Host-Depletion-Zweig fehlgeschlagen)" >&2; exit 1; }
-    KU_READS=("$R1" "$R2")
 fi
 samtools index "$BAM"
-samtools flagstat "$BAM" > "$OUT/$SAMPLE.flagstat.txt"
+samtools flagstat "$BAM" > "$TMP/$SAMPLE.flagstat.txt"
 
-# ── 4. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
+# ── 3. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
 echo "--- ichorCNA ---"
-WIG="$OUT/$SAMPLE.$ICHORCNA_BIN_LABEL.wig"
+WIG="$TMP/$SAMPLE.$ICHORCNA_BIN_LABEL.wig"
 CHROMS=$(printf 'chr%s,' {1..22}; echo "chrX,chrY")
 readCounter --window "$ICHORCNA_BIN_SIZE" --quality 20 --chromosome "$CHROMS" "$BAM" > "$WIG"
 
@@ -97,7 +94,7 @@ Rscript scripts/run_ichorcna.R \
     --centromere "$EXTDATA_DIR/$ICHORCNA_CENTROMERE" \
     --normalPanel "$EXTDATA_DIR/$ICHORCNA_NORMAL_PANEL" \
     --id "$SAMPLE" \
-    --outDir "$OUT" \
+    --outDir "$TMP" \
     --genomeBuild "$ICHORCNA_GENOME_BUILD" \
     --genomeStyle "$ICHORCNA_GENOME_STYLE" \
     --chrs "$ICHORCNA_CHRS" \
@@ -115,10 +112,10 @@ Rscript scripts/run_ichorcna.R \
     --plotFileType png \
     --cores "$THREADS_ICHORCNA"
 
-CNV_PARAMS="$OUT/$SAMPLE.params.txt"
-CNV_PLOT="$OUT/$SAMPLE/${SAMPLE}_genomeWide.png"
+CNV_PARAMS="$TMP/$SAMPLE.params.txt"
+CNV_PLOT="$TMP/$SAMPLE/${SAMPLE}_genomeWide.png"
 
-# ── 5. KrakenUniq (auf non-human Reads) ─────────────────────────────────────
+# ── 4. KrakenUniq (alle Reads, wie im ursprünglichen krakenuniq-report) ────
 KU_REPORT=""
 if [ "$KRAKENUNIQ_ENABLED" = "true" ]; then
     echo "--- KrakenUniq ---"
@@ -126,17 +123,17 @@ if [ "$KRAKENUNIQ_ENABLED" = "true" ]; then
     export PATH="$KRAKENUNIQ_BIN_DIR:$EXTRA_BIN_DIR:$ENV_KRAKENUNIQ/bin:$PATH"
     KU_REPORT="$OUT/$SAMPLE.krakenuniq.report.txt"
     bash scripts/krakenuniq_run.sh "$KRAKENUNIQ_DB" "$THREADS_KRAKENUNIQ" "$KRAKENUNIQ_PRELOAD_SIZE" \
-        "$KU_REPORT" "tmp/$SAMPLE" "${KU_READS[@]}"
+        "$KU_REPORT" "$TMP" "${KU_READS[@]}"
 else
     echo "--- KrakenUniq übersprungen (KRAKENUNIQ_ENABLED=$KRAKENUNIQ_ENABLED) ---"
 fi
 
-# ── 6. Report (PDF mit CNV-Plot + Host-Depletion, JSON, Nexus-Befund.docx) ──
+# ── 5. Report (PDF mit CNV-Plot + Alignment-Statistik, JSON, Nexus-Befund.docx) ──
 echo "--- Report ---"
 export PATH="$ENV_REPORT/bin:$PATH"
 python3 scripts/build_report.py \
     --sample "$SAMPLE" --platform "$PLATFORM" \
-    --flagstat "$OUT/$SAMPLE.flagstat.txt" \
+    --flagstat "$TMP/$SAMPLE.flagstat.txt" \
     --ichorcna-params "$CNV_PARAMS" \
     --ichorcna-plot "$CNV_PLOT" \
     --krakenuniq-report "$KU_REPORT" \
@@ -146,5 +143,6 @@ python3 scripts/build_report.py \
 
 echo "=== Fertig: $SAMPLE ==="
 echo "  $OUT/$SAMPLE.metagenomics_report.pdf"
+echo "  $OUT/$SAMPLE.krakenuniq.report.txt"
 echo "  $OUT/$SAMPLE.summary.json"
 echo "  $OUT/${SAMPLE}_Nexus_Befund.docx"

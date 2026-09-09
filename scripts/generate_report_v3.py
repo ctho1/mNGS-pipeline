@@ -1335,7 +1335,7 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
 
         if host:
             h_tbl = Table([
-                ["Reads gesamt", "human (hg19)", "non-human (→ KrakenUniq)"],
+                ["Reads gesamt", "human (hg19)", "non-human (hg19-unmapped)"],
                 [fmt_num(host["total_reads"]),
                  f"{fmt_num(host['human_reads'])} ({host['pct_human']:.1f}%)",
                  f"{fmt_num(host['non_human_reads'])} ({host['pct_non_human']:.1f}%)"],
@@ -1989,7 +1989,7 @@ if __name__ == "__main__":
     parser.add_argument("--human-reads", type=int, default=None,
                          help="Host-Depletion: reads mapped to hg19")
     parser.add_argument("--non-human-reads", type=int, default=None,
-                         help="Host-Depletion: reads NOT mapped to hg19 (KrakenUniq input)")
+                         help="Host-Depletion: reads NOT mapped to hg19")
     parser.add_argument("--cnv-tumor-fraction", default=None)
     parser.add_argument("--cnv-ploidy", default=None)
     parser.add_argument("--cnv-gender", default=None)

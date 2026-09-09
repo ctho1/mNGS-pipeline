@@ -165,7 +165,7 @@ def main():
         },
         "krakenuniq": {
             "enabled": krakenuniq_ran,
-            "input": "non-human reads (hg19-unmapped)",
+            "input": "all reads",
             **(krakenuniq_json or {}),
         },
     }

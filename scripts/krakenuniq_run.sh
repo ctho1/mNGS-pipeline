@@ -9,12 +9,22 @@ db="$1"; threads="$2"; preload="$3"; report="$4"; tmp="$5"
 shift 5
 
 mkdir -p "$tmp" "$(dirname "$report")"
+
+# Absolute Pfade auflösen, BEVOR ins tmp-Verzeichnis gewechselt wird -- sonst
+# lösen die übrigen relativen Pfade (Report-Datei, Read-Dateien) nach dem cd
+# falsch auf (führte zu "malformed fasta"-Fehlern in krakenuniq).
+report="$(cd "$(dirname "$report")" && pwd)/$(basename "$report")"
+reads=()
+for f in "$@"; do
+    reads+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
+done
+
 cd "$tmp"
 
-if [ "$#" -eq 2 ]; then
+if [ "${#reads[@]}" -eq 2 ]; then
     krakenuniq --preload-size "$preload" --report-file "$report" \
-        --db "$db" --threads "$threads" --output - --paired "$1" "$2"
+        --db "$db" --threads "$threads" --output - --paired "${reads[@]}"
 else
     krakenuniq --preload-size "$preload" --report-file "$report" \
-        --db "$db" --threads "$threads" --output - "$1"
+        --db "$db" --threads "$threads" --output - "${reads[@]}"
 fi

@@ -1,4 +1,4 @@
-# mNGS-Pipeline: Host-Depletion + CNV (ichorCNA) + KrakenUniq
+# mNGS-Pipeline: CNV (ichorCNA) + KrakenUniq
 
 Bash/SLURM-Pipeline für mNGS-Diagnostik, kompatibel mit **Nanopore** und
 **Illumina**. Steuert SLURM auf PALMA direkt an (`sbatch`, ein Job pro
@@ -10,14 +10,14 @@ Pro Probe:
 1. **Concat** (nur Nanopore, Unterordner → eine Datei) und **Alignment**
    gegen hg19 -- Nanopore mit `minimap2 -ax map-ont`, Illumina mit
    `bwa-mem2 mem` (reuse des geteilten hg19-Index von ngs-tumor-pipeline,
-   siehe unten). **Host-Depletion** läuft inline: non-human Reads werden
-   per `tee` live aus dem SAM-Stream abgezweigt, parallel zum BAM-Sort.
+   siehe unten).
 2. **CNV-Profil** mit ichorCNA (hg19-PoN, kein gematchtes Normalgewebe).
    Parameter + Referenzdaten von [nanoDx](https://gitlab.com/pesk/nanoDx)
    übernommen (gleiche r-ichorcna-Version, selbst hg19-nativ).
-3. **KrakenUniq** auf den non-human Reads.
+3. **KrakenUniq** auf allen Reads (wie im ursprünglichen krakenuniq-report --
+   keine Host-Depletion vorab).
 4. **Report**: `{sample}.metagenomics_report.pdf` (Top-Hits + CNV-Plot +
-   Host-Depletion, via erweitertem `generate_report_v3.py`),
+   Alignment-Statistik, via erweitertem `generate_report_v3.py`),
    `{sample}.summary.json`, `{sample}_Nexus_Befund.docx` (Word-Vorlagenbefund).
 
 ## Struktur
@@ -29,7 +29,7 @@ scripts/
 ├── setup_envs.sh             # Conda-Envs anlegen (einmalig)
 ├── prepare_reference.sh      # sbatch-Job: hg19 + Indizes
 ├── sample_pipeline.sh        # sbatch-Job: Alignment -> ichorCNA -> KrakenUniq -> Report
-├── concat_fastq.sh, extract_nonhuman_{se,pe}.sh, krakenuniq_run.sh, run_ichorcna.R
+├── concat_fastq.sh, krakenuniq_run.sh, run_ichorcna.R
 ├── build_report.py           # PDF/JSON/docx
 └── generate_report_v3.py, kraken_tree.py
 analysis/                     # z-Score-/Prävalenz-Referenzdaten
@@ -63,14 +63,21 @@ KRAKENUNIQ_ENABLED=false bash run_pipeline.sh      # lokaler Test ohne DB
 Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
 
-## Ergebnisse (`output/<Sample>/`)
+## Ergebnisse
+
+`output/<Sample>/` -- Deliverables:
+
+```
+<Sample>.krakenuniq.report.txt
+<Sample>.metagenomics_report.pdf, .summary.json, _Nexus_Befund.docx
+```
+
+`tmp/<Sample>/` -- Zwischendateien (BAM, FASTQ, ichorCNA-Rohdaten; bleiben
+nach dem Lauf liegen, können bei Bedarf gelöscht werden):
 
 ```
 <Sample>.hg19.bam(.bai), .flagstat.txt
-<Sample>.nonhuman(_R1/_R2).fastq.gz
 <Sample>.params.txt / .seg.txt / .cna.seg, <Sample>/<Sample>_genomeWide.png
-<Sample>.krakenuniq.report.txt
-<Sample>.metagenomics_report.pdf, .summary.json, _Nexus_Befund.docx
 ```
 
 ## PALMA-Module statt Conda
