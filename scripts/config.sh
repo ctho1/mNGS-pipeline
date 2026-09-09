@@ -5,12 +5,11 @@
 
 : "${MAIL_USER:=}"
 
-# SLURM partition selection. General-purpose public CPU partitions plus the
-# explicitly permitted preemptible requeue queues are considered; scarce
-# large-memory and GPU nodes remain excluded. The order is also the tie-breaker
-# when partitions have equal idle capacity.
+# SLURM partition selection. The required software modules are available only
+# on normal and the preemptible requeue partition. The order is also the
+# tie-breaker when both partitions have equal idle capacity.
 : "${SLURM_AUTO_PARTITION:=true}"
-: "${SLURM_CPU_PARTITIONS:=normal,zen2-128C-496G,zen3,zen4,zen4x,requeue,requeue-zen}"
+: "${SLURM_CPU_PARTITIONS:=normal,requeue}"
 : "${SLURM_FALLBACK_PARTITION:=normal}"
 
 # KrakenUniq (unchanged from the original krakenuniq-report)

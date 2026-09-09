@@ -85,16 +85,15 @@ Vor dem ersten `sbatch` fragt die Pipeline die aktuelle freie CPU-Kapazität
 der öffentlichen Allzweck-Partitionen mit `sinfo` ab. Die erlaubten
 Partitionen werden nach freien CPUs sortiert gemeinsam an SLURM übergeben;
 dadurch kann der Scheduler den frühesten passenden Ausführungsort wählen.
-Standardmäßig berücksichtigt werden `normal`, `zen2-128C-496G`, `zen3`,
-`zen4`, `zen4x`, `requeue` und `requeue-zen`. Auf den beiden
-`requeue`-Partitionen darf SLURM Jobs unterbrechen und neu einreihen; die
-Pipeline setzt dann am letzten vollständig abgeschlossenen Schritt fort.
-GPU-, Large-Memory- und `express`-Partitionen werden nicht automatisch
-verwendet. Konfiguration:
+Standardmäßig werden ausschließlich `normal` und `requeue` berücksichtigt,
+da die benötigten Softwaremodule nur dort verfügbar sind. Auf `requeue` darf
+SLURM Jobs unterbrechen und neu einreihen; die Pipeline setzt dann am letzten
+vollständig abgeschlossenen Schritt fort. Alle anderen Partitionen werden
+nicht automatisch verwendet. Konfiguration:
 
 ```bash
 SLURM_AUTO_PARTITION=false bash run_pipeline.sh    # immer Fallback `normal`
-SLURM_CPU_PARTITIONS=normal,zen4 bash run_pipeline.sh
+SLURM_CPU_PARTITIONS=normal bash run_pipeline.sh
 ```
 
 `sample_pipeline.sh` ist **resumable**: jeder Schritt (Concat, Alignment,
