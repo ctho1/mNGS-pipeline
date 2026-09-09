@@ -51,52 +51,29 @@ fi
 submitted=0
 skipped=0
 
-# Nanopore: subfolders in input/
+# Proben in input/ erkennen (flach, keine Unterordner): Illumina-R1/R2-Paare
+# und Nanopore-Dateien gruppiert nach gemeinsamem Namensstamm (alles vor der
+# letzten "_<Zahl>", z.B. PBM37034_pass_barcode05_xxx_0.fastq.gz + ..._1 ->
+# eine Probe), numerisch nach Chunk-Nummer sortiert. Siehe scripts/discover_samples.py.
 echo ""
-echo "=== Nanopore-Proben (input/<sample>/) ==="
-for dir in input/*/; do
-    [ -d "$dir" ] || continue
-    sample=$(basename "$dir")
-    # no mapfile/readarray (bash <4, e.g. macOS system bash)
-    reads=()
-    while IFS= read -r -d '' f; do
-        reads+=("$f")
-    done < <(find "$dir" -type f \( -name "*.fastq.gz" -o -name "*.fastq" \) -print0 | sort -z)
-    if [ "${#reads[@]}" -eq 0 ]; then
-        echo "  SKIP $sample (keine FASTQ-Dateien)"
-        (( skipped++ )) || true
-        continue
-    fi
-    echo "  Submitting $sample (${#reads[@]} Datei(en))"
+echo "=== Proben in input/ ==="
+skip_log="$(mktemp)"
+while IFS=$'\t' read -r -a fields; do
+    platform="${fields[0]}"
+    sample="${fields[1]}"
+    reads=("${fields[@]:2}")
+    echo "  Submitting $sample ($platform, ${#reads[@]} Datei(en))"
     if [ "$USE_SLURM" = "1" ]; then
         sbatch "${MAIL_ARGS[@]}" "${REF_DEP[@]}" --job-name="$sample" \
-            scripts/sample_pipeline.sh nanopore "$sample" "${reads[@]}"
+            scripts/sample_pipeline.sh "$platform" "$sample" "${reads[@]}"
     else
-        bash scripts/sample_pipeline.sh nanopore "$sample" "${reads[@]}"
+        bash scripts/sample_pipeline.sh "$platform" "$sample" "${reads[@]}"
     fi
     (( submitted++ )) || true
-done
-
-# Illumina: R1/R2 pairs directly in input/
-echo ""
-echo "=== Illumina-Proben (input/*_R1_001.fastq.gz) ==="
-while IFS= read -r -d '' r1; do
-    r2="${r1/_R1_001.fastq.gz/_R2_001.fastq.gz}"
-    if [ ! -f "$r2" ]; then
-        echo "  SKIP $r1 (keine passende R2 gefunden: $r2)"
-        (( skipped++ )) || true
-        continue
-    fi
-    sample=$(basename "$r1" "_R1_001.fastq.gz")
-    echo "  Submitting $sample"
-    if [ "$USE_SLURM" = "1" ]; then
-        sbatch "${MAIL_ARGS[@]}" "${REF_DEP[@]}" --job-name="$sample" \
-            scripts/sample_pipeline.sh illumina "$sample" "$r1" "$r2"
-    else
-        bash scripts/sample_pipeline.sh illumina "$sample" "$r1" "$r2"
-    fi
-    (( submitted++ )) || true
-done < <(find input -maxdepth 1 -type f -name "*_R1_001.fastq.gz" -print0 | sort -z)
+done < <(python3 scripts/discover_samples.py input 2>"$skip_log")
+sed 's/^/  /' "$skip_log" >&2
+skipped=$(wc -l < "$skip_log" | tr -d ' ')
+rm -f "$skip_log"
 
 echo ""
 if [ "$USE_SLURM" = "1" ]; then

@@ -7,10 +7,10 @@ Ohne SLURM (z.B. lokal) läuft alles seriell im Vordergrund.
 
 Pro Probe:
 
-1. **Concat** (nur Nanopore, Unterordner → eine Datei) und **Alignment**
-   gegen hg19 -- Nanopore mit `minimap2 -ax map-ont`, Illumina mit
-   `bwa-mem2 mem` (reuse des geteilten hg19-Index von ngs-tumor-pipeline,
-   siehe unten).
+1. **Concat** (nur Nanopore, per Datei-Stamm gruppierte Chunks → eine Datei)
+   und **Alignment** gegen hg19 -- Nanopore mit `minimap2 -ax map-ont`,
+   Illumina mit `bwa-mem2 mem` (reuse des geteilten hg19-Index von
+   ngs-tumor-pipeline, siehe unten).
 2. **CNV-Profil** mit ichorCNA (hg19-PoN, kein gematchtes Normalgewebe).
    Parameter + Referenzdaten von [nanoDx](https://gitlab.com/pesk/nanoDx)
    übernommen (gleiche r-ichorcna-Version, selbst hg19-nativ).
@@ -29,7 +29,7 @@ scripts/
 ├── setup_envs.sh             # Conda-Envs anlegen (einmalig)
 ├── prepare_reference.sh      # sbatch-Job: hg19 + Indizes
 ├── sample_pipeline.sh        # sbatch-Job: Alignment -> ichorCNA -> KrakenUniq -> Report
-├── concat_fastq.sh, krakenuniq_run.sh, run_ichorcna.R
+├── discover_samples.py, concat_fastq.sh, krakenuniq_run.sh, run_ichorcna.R
 ├── build_report.py           # PDF/JSON/docx
 └── generate_report_v3.py, kraken_tree.py
 analysis/                     # z-Score-/Prävalenz-Referenzdaten
@@ -39,11 +39,22 @@ input/                        # Proben (siehe unten)
 
 ## Input
 
+Alle Dateien liegen flach in `input/` (keine Unterordner):
+
 ```
-input/N1234_26/*.fastq.gz              # Nanopore: Unterordner = 1 Probe
+input/PBM37034_pass_barcode05_3856fdc5_0.fastq.gz   # Nanopore: nach Datei-
+input/PBM37034_pass_barcode05_3856fdc5_1.fastq.gz   #   Stamm gruppiert (alles
+input/PBM37034_pass_barcode05_3856fdc5_2.fastq.gz   #   vor der letzten "_<Zahl>",
+                                                     #   MinKNOW/Guppy-Konvention;
+                                                     #   numerisch sortiert konkateniert)
 input/Probe01_R1_001.fastq.gz          # Illumina: flaches R1/R2-Paar
 input/Probe01_R2_001.fastq.gz
 ```
+
+Erkennung (`scripts/discover_samples.py`): `*_R1_001`/`*_R2_001`-Paare sind
+Illumina; alle übrigen `*.fastq(.gz)`-Dateien werden anhand des
+gemeinsamen Namensstamms zu Nanopore-Proben gruppiert (unterschiedliche
+Barcodes = unterschiedliche Proben, da der Barcode Teil des Stamms ist).
 
 ## Setup
 
