@@ -7,7 +7,12 @@
 #
 # Nutzt `mamba create` statt `mamba env create -f`: die "env"-Subcommand
 # unterstützt in älteren mamba-Versionen (u.a. PALMA) kein
-# --override-channels, das globale Channel-Konflikte (libdeflate) ignoriert.
+# --override-channels. --channel-priority=flexible umgeht außerdem einen
+# libmamba-Solver-Bug (mamba <2, sichtbar an "SOLVER_RULE_STRICT_REPO_
+# PRIORITY not implemented"-Warnungen), der mit channel_priority=strict in
+# der globalen .condarc zu spurious "unlösbar"-Fehlern führt (z.B.
+# samtools/htslib, r-base/libtiff -- beide über libdeflate, ohne echten
+# Versionskonflikt).
 set -euo pipefail
 
 # Bereits aktive/PATH-Installation nutzen (z.B. PALMA-Modul), sonst Miniforge-Default.
@@ -44,10 +49,12 @@ ARCH="$(uname -m)"
 
 mkdir -p "$ENV_DIR"
 
+MAMBA_FLAGS=(--override-channels --channel-priority=flexible)
+
 if [ "$OS" = "Linux" ]; then
     echo "=== align (readCounter; minimap2/bwa-mem2/samtools kommen auf PALMA aus dem Modulsystem) ==="
     if [ ! -d "$ENV_DIR/align" ]; then
-        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
+        "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c bioconda -c conda-forge -p "$ENV_DIR/align" \
             "hmmcopy=0.1.1"
     else
         echo "  bereits vorhanden, überspringe"
@@ -55,7 +62,7 @@ if [ "$OS" = "Linux" ]; then
 else
     echo "=== align (minimap2, bwa-mem2, samtools, readCounter) ==="
     if [ ! -d "$ENV_DIR/align" ]; then
-        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
+        "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c bioconda -c conda-forge -p "$ENV_DIR/align" \
             "minimap2>=2.28,<3" "bwa-mem2=2.2.1" "samtools>=1.20,<2" "hmmcopy=0.1.1"
     else
         echo "  bereits vorhanden, überspringe"
@@ -64,7 +71,7 @@ fi
 
 echo "=== report (python, reportlab, python-docx) ==="
 if [ ! -d "$ENV_DIR/report" ]; then
-    "$MAMBA" create -y --override-channels -c conda-forge -p "$ENV_DIR/report" \
+    "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c conda-forge -p "$ENV_DIR/report" \
         "python=3.11" "reportlab" "python-docx"
 else
     echo "  bereits vorhanden, überspringe"
@@ -74,11 +81,11 @@ echo "=== ichorcna (R, r-ichorcna) ==="
 if [ ! -d "$ENV_DIR/ichorcna" ]; then
     if [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
         echo "  kein osx-arm64-Build -- Env läuft unter Rosetta 2 (osx-64)"
-        CONDA_SUBDIR=osx-64 "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
+        CONDA_SUBDIR=osx-64 "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
             "r-base=4.3" "r-ichorcna=0.5.1" "r-optparse"
         echo "subdir: osx-64" >> "$ENV_DIR/ichorcna/.condarc"
     else
-        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
+        "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c bioconda -c conda-forge -p "$ENV_DIR/ichorcna" \
             "r-base=4.3" "r-ichorcna=0.5.1" "r-optparse"
     fi
 else
@@ -88,7 +95,7 @@ fi
 echo "=== krakenuniq ==="
 if [ "$OS" = "Linux" ]; then
     if [ ! -d "$ENV_DIR/krakenuniq" ]; then
-        "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/krakenuniq" \
+        "$MAMBA" create -y "${MAMBA_FLAGS[@]}" -c bioconda -c conda-forge -p "$ENV_DIR/krakenuniq" \
             "krakenuniq=1.0.4"
     else
         echo "  bereits vorhanden, überspringe"
