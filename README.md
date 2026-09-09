@@ -74,11 +74,28 @@ bash scripts/setup_envs.sh   # Conda-Envs (macOS: ichorcna via Rosetta 2; PALMA:
 ```bash
 bash run_pipeline.sh                              # ohne Mail
 bash run_pipeline.sh --mail user@uni-muenster.de
+bash run_pipeline.sh --partition normal           # Partitionswahl manuell setzen
 KRAKENUNIQ_ENABLED=false bash run_pipeline.sh      # lokaler Test ohne DB
 ```
 
 Mit SLURM: `prepare_reference.sh` (falls Referenz fehlt) läuft zuerst,
 Probenjobs hängen per `--dependency` daran. Ohne SLURM: alles seriell direkt.
+
+Vor dem ersten `sbatch` fragt die Pipeline die aktuelle freie CPU-Kapazität
+der öffentlichen Allzweck-Partitionen mit `sinfo` ab. Die erlaubten
+Partitionen werden nach freien CPUs sortiert gemeinsam an SLURM übergeben;
+dadurch kann der Scheduler den frühesten passenden Ausführungsort wählen.
+Standardmäßig berücksichtigt werden `normal`, `zen2-128C-496G`, `zen3`,
+`zen4`, `zen4x`, `requeue` und `requeue-zen`. Auf den beiden
+`requeue`-Partitionen darf SLURM Jobs unterbrechen und neu einreihen; die
+Pipeline setzt dann am letzten vollständig abgeschlossenen Schritt fort.
+GPU-, Large-Memory- und `express`-Partitionen werden nicht automatisch
+verwendet. Konfiguration:
+
+```bash
+SLURM_AUTO_PARTITION=false bash run_pipeline.sh    # immer Fallback `normal`
+SLURM_CPU_PARTITIONS=normal,zen4 bash run_pipeline.sh
+```
 
 `sample_pipeline.sh` ist **resumable**: jeder Schritt (Concat, Alignment,
 Host-Depletion, FASTQ-Read-Zählung, ichorCNA, KrakenUniq) prüft zuerst, ob

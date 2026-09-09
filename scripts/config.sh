@@ -5,6 +5,14 @@
 
 : "${MAIL_USER:=}"
 
+# SLURM partition selection. General-purpose public CPU partitions plus the
+# explicitly permitted preemptible requeue queues are considered; scarce
+# large-memory and GPU nodes remain excluded. The order is also the tie-breaker
+# when partitions have equal idle capacity.
+: "${SLURM_AUTO_PARTITION:=true}"
+: "${SLURM_CPU_PARTITIONS:=normal,zen2-128C-496G,zen3,zen4,zen4x,requeue,requeue-zen}"
+: "${SLURM_FALLBACK_PARTITION:=normal}"
+
 # KrakenUniq (unchanged from the original krakenuniq-report)
 : "${KRAKENUNIQ_ENABLED:=true}"
 : "${KRAKENUNIQ_DB:=/scratch/tmp/thomachr/references/krakenuniq/microbial_db}"
@@ -69,6 +77,7 @@ HG19_BWA_MEM2_PREFIX="$HG19_FASTA"  # bwa-mem2 index files share this prefix
 : "${ICHORCNA_NORMAL_PANEL:=HD_ULP_PoN_1Mb_median_normAutosome_mapScoreFiltered_median.rds}"
 
 export MAIL_USER
+export SLURM_AUTO_PARTITION SLURM_CPU_PARTITIONS SLURM_FALLBACK_PARTITION
 export KRAKENUNIQ_ENABLED KRAKENUNIQ_DB KRAKENUNIQ_BIN_DIR EXTRA_BIN_DIR KRAKENUNIQ_PRELOAD_SIZE MODULE_PREFIX
 export MINIMAP2_MODULES BWA_MEM2_MODULES SAMTOOLS_MODULES
 export ENV_ALIGN ENV_ICHORCNA ENV_REPORT ENV_KRAKENUNIQ

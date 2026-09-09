@@ -14,6 +14,8 @@ mkdir -p "$tmp" "$(dirname "$report")"
 # lösen die übrigen relativen Pfade (Report-Datei, Read-Dateien) nach dem cd
 # falsch auf (führte zu "malformed fasta"-Fehlern in krakenuniq).
 report="$(cd "$(dirname "$report")" && pwd)/$(basename "$report")"
+report_tmp="${report}.tmp.${SLURM_JOB_ID:-$$}"
+rm -f "$report_tmp"
 reads=()
 for f in "$@"; do
     reads+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
@@ -22,9 +24,14 @@ done
 cd "$tmp"
 
 if [ "${#reads[@]}" -eq 2 ]; then
-    krakenuniq --preload-size "$preload" --report-file "$report" \
+    krakenuniq --preload-size "$preload" --report-file "$report_tmp" \
         --db "$db" --threads "$threads" --output - --paired "${reads[@]}"
 else
-    krakenuniq --preload-size "$preload" --report-file "$report" \
+    krakenuniq --preload-size "$preload" --report-file "$report_tmp" \
         --db "$db" --threads "$threads" --output - "${reads[@]}"
 fi
+
+# Erst nach erfolgreichem Abschluss veröffentlichen. Das verhindert, dass ein
+# auf einer requeue-Partition unterbrochener Teilreport beim Neustart als
+# vollständiges Ergebnis erkannt wird.
+mv "$report_tmp" "$report"

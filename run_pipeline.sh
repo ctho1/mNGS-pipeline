@@ -5,6 +5,7 @@
 #
 # Usage:
 #   bash run_pipeline.sh [--mail user@uni-muenster.de]
+#   bash run_pipeline.sh --partition normal   # automatische Auswahl umgehen
 #   KRAKENUNIQ_ENABLED=false bash run_pipeline.sh   # local test, no DB
 set -euo pipefail
 
@@ -12,9 +13,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 source scripts/config.sh
 
+PARTITION_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --mail) MAIL_USER="$2"; shift 2 ;;
+        --partition) PARTITION_OVERRIDE="$2"; shift 2 ;;
         *)      echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -34,13 +37,31 @@ else
     echo "Kein SLURM (sbatch nicht gefunden) -- führe Proben direkt/seriell aus."
 fi
 
+SBATCH_PARTITION_ARGS=()
+if [ "$USE_SLURM" = "1" ]; then
+    if [ -n "$PARTITION_OVERRIDE" ]; then
+        SELECTED_PARTITIONS="$PARTITION_OVERRIDE"
+        echo "SLURM-Partition manuell gesetzt: $SELECTED_PARTITIONS"
+    elif [ "$SLURM_AUTO_PARTITION" = "true" ]; then
+        SELECTED_PARTITIONS=$(python3 scripts/select_slurm_partitions.py \
+            --partitions "$SLURM_CPU_PARTITIONS" \
+            --fallback "$SLURM_FALLBACK_PARTITION")
+        echo "SLURM-Partitionen nach freier CPU-Kapazität: $SELECTED_PARTITIONS"
+    else
+        SELECTED_PARTITIONS="$SLURM_FALLBACK_PARTITION"
+        echo "Automatische Partitionswahl deaktiviert: $SELECTED_PARTITIONS"
+    fi
+    SBATCH_PARTITION_ARGS=(--partition="$SELECTED_PARTITIONS")
+fi
+
 # Reference (build once, submit as a dependency for all sample jobs)
 REF_DEP=()
 if [ ! -s "$HG19_MMI_NANOPORE" ] || [ ! -s "$HG19_BWA_MEM2_PREFIX.bwt.2bit.64" ]; then
     echo ""
     echo "=== Referenz fehlt -- wird vorbereitet ==="
     if [ "$USE_SLURM" = "1" ]; then
-        REF_JOBID=$(sbatch --parsable "${MAIL_ARGS[@]}" scripts/prepare_reference.sh)
+        REF_JOBID=$(sbatch --parsable "${MAIL_ARGS[@]}" "${SBATCH_PARTITION_ARGS[@]}" \
+            scripts/prepare_reference.sh)
         REF_DEP=(--dependency=afterok:"$REF_JOBID")
         echo "  Referenz-Job: $REF_JOBID (alle Probenjobs warten darauf)"
     else
@@ -64,7 +85,8 @@ while IFS=$'\t' read -r -a fields; do
     reads=("${fields[@]:2}")
     echo "  Submitting $sample ($platform, ${#reads[@]} Datei(en))"
     if [ "$USE_SLURM" = "1" ]; then
-        sbatch "${MAIL_ARGS[@]}" "${REF_DEP[@]}" --job-name="$sample" \
+        sbatch "${MAIL_ARGS[@]}" "${REF_DEP[@]}" "${SBATCH_PARTITION_ARGS[@]}" \
+            --job-name="$sample" \
             scripts/sample_pipeline.sh "$platform" "$sample" "${reads[@]}"
     else
         bash scripts/sample_pipeline.sh "$platform" "$sample" "${reads[@]}"
