@@ -1,20 +1,11 @@
 #!/bin/bash
-# =============================================================================
-# sample_pipeline.sh -- kompletter Analysepfad für EINE Probe:
-#   Concat (nur Nanopore) -> hg38-Alignment -> Host-Depletion -> ichorCNA
-#   -> KrakenUniq (falls aktiviert) -> Report (PDF/JSON/Nexus-docx)
-#
-# Wird von run_pipeline.sh als sbatch-Job (oder lokal direkt) je Probe
-# aufgerufen, nicht direkt vom Nutzer.
+# Analysepfad für eine Probe: Concat (nur Nanopore) -> hg19-Alignment +
+# Host-Depletion -> ichorCNA -> KrakenUniq (falls aktiv) -> Report.
+# Wird von run_pipeline.sh aufgerufen, nicht direkt.
 #
 # Usage:
 #   Nanopore:  sample_pipeline.sh nanopore <sample> <reads1.fastq.gz> [reads2 ...]
 #   Illumina:  sample_pipeline.sh illumina <sample> <R1.fastq.gz> <R2.fastq.gz>
-#
-# sbatch-Flags hier sind nur Defaults für einen direkten
-# `sbatch scripts/sample_pipeline.sh ...`-Aufruf; run_pipeline.sh übergibt
-# beim Submit eigene Flags, die diese überschreiben.
-# =============================================================================
 #SBATCH --job-name=mngs
 #SBATCH --partition=normal
 #SBATCH --cpus-per-task=36
@@ -43,54 +34,55 @@ echo "=== mNGS-Pipeline: $SAMPLE ($PLATFORM) ==="
 echo "Threads: $THREADS"
 echo "Reads:   ${READS[*]}"
 
-# ── 1. Concat (nur Nanopore; Illumina-Paar wird direkt aligned) ────────────
+# 1. Concat (nur Nanopore; Illumina-Paar wird direkt aligned)
 if [ "$PLATFORM" = "nanopore" ]; then
     FASTQ="$OUT/$SAMPLE.fastq.gz"
     bash scripts/concat_fastq.sh "$FASTQ" "${READS[@]}"
     ALIGN_INPUT=("$FASTQ")
-    MMI="$HG38_MMI_NANOPORE"
-    PRESET="map-ont"
 elif [ "$PLATFORM" = "illumina" ]; then
     ALIGN_INPUT=("${READS[@]}")
-    MMI="$HG38_MMI_ILLUMINA"
-    PRESET="sr"
 else
     echo "Unbekannte Plattform: $PLATFORM (erwartet: nanopore|illumina)" >&2
     exit 1
 fi
 
-# ── 2. Alignment gegen hg38 ─────────────────────────────────────────────────
-echo "--- Alignment (minimap2 -ax $PRESET) ---"
-BAM="$OUT/$SAMPLE.hg38.bam"
+# 2./3. Alignment + Host-Depletion in einem Durchgang: non-human Reads
+# werden per `tee` aus dem live SAM-Stream abgezweigt (parallel zu
+# `samtools sort`), statt das fertige BAM danach nochmal zu lesen.
+echo "--- Alignment + Host-Depletion ($PLATFORM) ---"
+BAM="$OUT/$SAMPLE.hg19.bam"
 export PATH="$ENV_ALIGN/bin:$PATH"
-# minimap2 UND samtools kommen auf PALMA aus dem Modulsystem (nicht aus dem
-# conda-align-Env, das dort nur noch readCounter/hmmcopy liefert -- samtools
-# ließ sich über conda wegen eines libdeflate/htslib-Konflikts nicht
-# zuverlässig installieren). Ohne Modulsystem (z.B. lokaler Testlauf ohne
-# SLURM) wird das übersprungen -- dann kommen beide aus dem conda-align-Env.
-if command -v module >/dev/null 2>&1; then
-    module purge
-    ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
-fi
-minimap2 -ax "$PRESET" --secondary=no -t "$THREADS" "$MMI" "${ALIGN_INPUT[@]}" \
-    | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
-samtools index "$BAM"
-samtools flagstat "$BAM" > "$OUT/$SAMPLE.flagstat.txt"
-
-# ── 3. Host-Depletion (non-human Reads -> KrakenUniq-Input) ────────────────
-echo "--- Host-Depletion ---"
+# Aligner + samtools kommen aus PALMA-Modulen, falls vorhanden, sonst conda.
 if [ "$PLATFORM" = "nanopore" ]; then
     NONHUMAN="$OUT/$SAMPLE.nonhuman.fastq.gz"
-    bash scripts/extract_nonhuman_se.sh "$BAM" "$NONHUMAN"
+    if command -v module >/dev/null 2>&1; then
+        module purge
+        ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
+    fi
+    minimap2 -ax map-ont --secondary=no -t "$THREADS" "$HG19_MMI_NANOPORE" "${ALIGN_INPUT[@]}" \
+        | tee >(bash scripts/extract_nonhuman_se.sh "$NONHUMAN") \
+        | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
+    wait
+    [ -s "$NONHUMAN" ] || { echo "FEHLER: $NONHUMAN wurde nicht erzeugt (Host-Depletion-Zweig fehlgeschlagen)" >&2; exit 1; }
     KU_READS=("$NONHUMAN")
 else
     R1="$OUT/$SAMPLE.nonhuman_R1.fastq.gz"
     R2="$OUT/$SAMPLE.nonhuman_R2.fastq.gz"
-    bash scripts/extract_nonhuman_pe.sh "$BAM" "$R1" "$R2"
+    if command -v module >/dev/null 2>&1; then
+        module purge
+        ml $BWA_MEM2_MODULES $SAMTOOLS_MODULES
+    fi
+    bwa-mem2 mem -t "$THREADS" "$HG19_BWA_MEM2_PREFIX" "${ALIGN_INPUT[@]}" \
+        | tee >(bash scripts/extract_nonhuman_pe.sh "$R1" "$R2") \
+        | samtools sort -@ "$THREADS_SAMTOOLS_SORT" -o "$BAM" -
+    wait
+    [ -s "$R1" ] && [ -s "$R2" ] || { echo "FEHLER: non-human R1/R2 wurden nicht erzeugt (Host-Depletion-Zweig fehlgeschlagen)" >&2; exit 1; }
     KU_READS=("$R1" "$R2")
 fi
+samtools index "$BAM"
+samtools flagstat "$BAM" > "$OUT/$SAMPLE.flagstat.txt"
 
-# ── 4. ichorCNA (readCounter + R, hg38-PoN, nanoDx-Parameter) ──────────────
+# ── 4. ichorCNA (readCounter + R, hg19-PoN, nanoDx-Parameter) ──────────────
 echo "--- ichorCNA ---"
 WIG="$OUT/$SAMPLE.$ICHORCNA_BIN_LABEL.wig"
 CHROMS=$(printf 'chr%s,' {1..22}; echo "chrX,chrY")

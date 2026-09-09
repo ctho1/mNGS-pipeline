@@ -1,25 +1,11 @@
 #!/bin/bash
-# =============================================================================
-# run_pipeline.sh -- Einstiegspunkt: erkennt Proben in input/ und führt die
-# Pipeline pro Probe aus.
-#
-# Auf PALMA (sbatch verfügbar): reicht für jede Probe einen eigenen SLURM-Job
-# ein (scripts/sample_pipeline.sh), analog zum ursprünglichen
-# krakenuniq-report/run_pipeline.sh. Referenz-Vorbereitung (Download + beide
-# minimap2-Indizes) läuft dabei als eigener, vorgeschalteter Job, von dem
-# alle Probenjobs per --dependency abhängen.
-#
-# Ohne SLURM (z.B. lokal zum Testen): führt dieselben Schritte direkt/seriell
-# aus, ohne sbatch.
-#
-# Verwendet ausschließlich relative Pfade und muss daher aus diesem Ordner
-# heraus aufgerufen werden.
+# Entry point: scans input/ and runs the pipeline per sample. Submits one
+# SLURM job per sample if sbatch is available, else runs them directly/
+# serially (local testing). Must be run from the repo root (relative paths).
 #
 # Usage:
-#   bash run_pipeline.sh                              # standardmäßig ohne Mail
-#   bash run_pipeline.sh --mail user@uni-muenster.de   # Mail-Benachrichtigung
-#   KRAKENUNIQ_ENABLED=false bash run_pipeline.sh      # lokaler Testlauf ohne DB
-# =============================================================================
+#   bash run_pipeline.sh [--mail user@uni-muenster.de]
+#   KRAKENUNIQ_ENABLED=false bash run_pipeline.sh   # local test, no DB
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,9 +34,9 @@ else
     echo "Kein SLURM (sbatch nicht gefunden) -- führe Proben direkt/seriell aus."
 fi
 
-# ── Referenz vorbereiten (einmalig) ─────────────────────────────────────────
+# Reference (build once, submit as a dependency for all sample jobs)
 REF_DEP=()
-if [ ! -s "$HG38_MMI_NANOPORE" ] || [ ! -s "$HG38_MMI_ILLUMINA" ]; then
+if [ ! -s "$HG19_MMI_NANOPORE" ] || [ ! -s "$HG19_BWA_MEM2_PREFIX.bwt.2bit.64" ]; then
     echo ""
     echo "=== Referenz fehlt -- wird vorbereitet ==="
     if [ "$USE_SLURM" = "1" ]; then
@@ -65,13 +51,13 @@ fi
 submitted=0
 skipped=0
 
-# ── Nanopore: Unterordner in input/ ─────────────────────────────────────────
+# Nanopore: subfolders in input/
 echo ""
 echo "=== Nanopore-Proben (input/<sample>/) ==="
 for dir in input/*/; do
     [ -d "$dir" ] || continue
     sample=$(basename "$dir")
-    # kein mapfile/readarray (bash <4, z.B. macOS-System-Bash) -- portabel per while-read
+    # no mapfile/readarray (bash <4, e.g. macOS system bash)
     reads=()
     while IFS= read -r -d '' f; do
         reads+=("$f")
@@ -91,7 +77,7 @@ for dir in input/*/; do
     (( submitted++ )) || true
 done
 
-# ── Illumina: R1/R2-Paare direkt in input/ ─────────────────────────────────
+# Illumina: R1/R2 pairs directly in input/
 echo ""
 echo "=== Illumina-Proben (input/*_R1_001.fastq.gz) ==="
 while IFS= read -r -d '' r1; do

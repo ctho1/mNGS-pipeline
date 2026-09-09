@@ -158,14 +158,14 @@ def main():
         "sample": args.sample,
         "platform": args.platform,
         "date": date.today().isoformat(),
-        "hg38_alignment": host,
+        "hg19_alignment": host,
         "ichorcna": {
-            "panel_of_normals": "hg38 (nanoDx-Parameter, r-ichorcna 0.5.1)",
+            "panel_of_normals": "hg19 (nanoDx-Parameter, r-ichorcna 0.5.1)",
             **{k: v for k, v in cnv.items() if k != "plot_path"},
         },
         "krakenuniq": {
             "enabled": krakenuniq_ran,
-            "input": "non-human reads (hg38-unmapped)",
+            "input": "non-human reads (hg19-unmapped)",
             **(krakenuniq_json or {}),
         },
     }

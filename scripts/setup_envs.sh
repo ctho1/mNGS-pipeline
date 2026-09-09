@@ -1,30 +1,16 @@
 #!/bin/bash
-# =============================================================================
-# setup_envs.sh -- legt alle Conda-Umgebungen an (lokal macOS zum Testen,
-# oder direkt auf PALMA/Linux zum produktiven Einsatz inkl. KrakenUniq).
+# Legt alle Conda-Envs an (macOS zum Testen, Linux/PALMA produktiv inkl.
+# KrakenUniq). Einmalig aufrufen, danach reicht `bash run_pipeline.sh`.
 #
-# Einmalig aufrufen, danach reicht `bash run_pipeline.sh` (siehe README).
-# Nutzt Miniforge/Mambaforge (Installation siehe README).
+# macOS/arm64: r-ichorcna hat keinen Build dort -> ichorcna-Env läuft unter
+# Rosetta 2 (osx-64); krakenuniq hat keinen osx-Build und wird übersprungen.
 #
-# macOS/Apple Silicon (osx-arm64): r-ichorcna hat dort keinen Build -> das
-# ichorcna-Env wird explizit als osx-64 angelegt und läuft unter Rosetta 2;
-# krakenuniq hat gar keinen osx-Build und wird übersprungen (siehe README zum
-# lokalen Deaktivieren über KRAKENUNIQ_ENABLED=false in scripts/config.sh).
-# Linux (PALMA): alle Envs, inkl. krakenuniq, laufen nativ.
-#
-# Nutzt bewusst `mamba create` (nicht `mamba env create -f ...`): die
-# "env"-Subcommand unterstützt in älteren mamba-Versionen (u.a. auf PALMA
-# angetroffen) kein --override-channels, das hier gebraucht wird, um
-# zusätzliche, global konfigurierte Channels (die z.B. zu alten libdeflate-
-# Konflikten führen) sicher zu ignorieren. Paketlisten unten müssen daher
-# manuell synchron zu scripts/envs/*.yaml gehalten werden (dort nur als
-# Referenz/Dokumentation).
-# =============================================================================
+# Nutzt `mamba create` statt `mamba env create -f`: die "env"-Subcommand
+# unterstützt in älteren mamba-Versionen (u.a. PALMA) kein
+# --override-channels, das globale Channel-Konflikte (libdeflate) ignoriert.
 set -euo pipefail
 
-# CONDA_BASE: falls nicht explizit gesetzt, erst eine bereits aktive/auf PATH
-# befindliche Installation nutzen (z.B. auf PALMA per Modul/eigenem Setup
-# bereitgestellt, "(base)" im Prompt aktiv), sonst Miniforge-Standardpfad.
+# Bereits aktive/PATH-Installation nutzen (z.B. PALMA-Modul), sonst Miniforge-Default.
 if [ -z "${CONDA_BASE:-}" ]; then
     if command -v conda >/dev/null 2>&1; then
         CONDA_BASE="$(conda info --base)"
@@ -44,8 +30,7 @@ if [ ! -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
 fi
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 
-# mamba bevorzugen (schneller), sonst conda -- erst auf PATH, dann im
-# erkannten CONDA_BASE suchen.
+# mamba bevorzugen, sonst conda
 if command -v mamba >/dev/null 2>&1; then
     MAMBA="$(command -v mamba)"
 elif [ -x "$CONDA_BASE/bin/mamba" ]; then
@@ -60,7 +45,7 @@ ARCH="$(uname -m)"
 mkdir -p "$ENV_DIR"
 
 if [ "$OS" = "Linux" ]; then
-    echo "=== align (readCounter; minimap2/samtools kommen auf PALMA aus dem Modulsystem) ==="
+    echo "=== align (readCounter; minimap2/bwa-mem2/samtools kommen auf PALMA aus dem Modulsystem) ==="
     if [ ! -d "$ENV_DIR/align" ]; then
         "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
             "hmmcopy=0.1.1"
@@ -68,10 +53,10 @@ if [ "$OS" = "Linux" ]; then
         echo "  bereits vorhanden, überspringe"
     fi
 else
-    echo "=== align (minimap2, samtools, readCounter) ==="
+    echo "=== align (minimap2, bwa-mem2, samtools, readCounter) ==="
     if [ ! -d "$ENV_DIR/align" ]; then
         "$MAMBA" create -y --override-channels -c bioconda -c conda-forge -p "$ENV_DIR/align" \
-            "minimap2>=2.28,<3" "samtools>=1.20,<2" "hmmcopy=0.1.1"
+            "minimap2>=2.28,<3" "bwa-mem2=2.2.1" "samtools>=1.20,<2" "hmmcopy=0.1.1"
     else
         echo "  bereits vorhanden, überspringe"
     fi

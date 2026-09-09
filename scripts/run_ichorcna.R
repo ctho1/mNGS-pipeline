@@ -1,24 +1,16 @@
 #!/usr/bin/env Rscript
 #
-# Thin CLI wrapper around ichorCNA::run_ichorCNA().
-#
-# The bioconda package r-ichorcna==0.5.1 (pinned in workflow/envs/ichorcna.yaml)
-# restructured the upstream repo so that "run_ichorCNA" ships as an *exported R
-# function* inside the package (R/runIchorCNA.R) rather than as the classic
-# optparse-based scripts/runIchorCNA.R CLI from older ichorCNA releases. This
-# wrapper recreates just enough of that CLI surface for our Snakemake rule.
-#
-# Parameter defaults below (normal/ploidy grid, minMapScore, txnStrength/txnE,
-# normalizeMaleX, estimateScPrevalence, plotYLim) match nanoDx
-# (gitlab.com/pesk/nanoDx, workflow/scripts/ichorCNA.R), which pins the same
-# r-ichorcna==0.5.1 -- see config/config.yaml for the rationale.
+# CLI wrapper around ichorCNA::run_ichorCNA(). r-ichorcna==0.5.1 ships this
+# as an exported R function (not the classic optparse CLI from older
+# releases), hence this wrapper. Parameter defaults match nanoDx
+# (gitlab.com/pesk/nanoDx), which pins the same version.
 #
 # Usage:
 #   Rscript run_ichorcna.R \
 #     --WIG tumor.wig --gcWig gc.wig --mapWig map.wig --centromere centromere.txt \
 #     --normalPanel pon.rds \
 #     --id SAMPLE --outDir OUTDIR \
-#     --genomeBuild hg38 --genomeStyle UCSC \
+#     --genomeBuild hg19 --genomeStyle UCSC \
 #     --chrs 'c(1:22,"X")' --chrNormalize 'c(1:22)' --chrTrain 'c(1:22)' \
 #     --normal 'c(0.5,0.6,0.7,0.8,0.9,0.95,0.99)' --ploidy 'c(2,3)' \
 #     --minMapScore 0.75 --txnStrength 10000 --txnE 0.9999 \

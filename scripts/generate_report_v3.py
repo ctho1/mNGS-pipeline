@@ -1327,15 +1327,15 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     story.append(HR(1.5*mm, 2*mm))
 
     # ── HOST-DEPLETION & CNV (aus vorgeschalteter Alignment-/ichorCNA-Stufe,
-    #    nur vorhanden wenn von der Snakemake-Pipeline übergeben) ───────────
+    #    nur vorhanden wenn von build_report.py übergeben) ──────────────────
     host = extra.get("host")
     cnv = extra.get("cnv")
     if host or cnv:
-        story.append(P("Host-Depletion &amp; Kopienzahl-Profil (hg38)", st_section))
+        story.append(P("Host-Depletion &amp; Kopienzahl-Profil (hg19)", st_section))
 
         if host:
             h_tbl = Table([
-                ["Reads gesamt", "human (hg38)", "non-human (→ KrakenUniq)"],
+                ["Reads gesamt", "human (hg19)", "non-human (→ KrakenUniq)"],
                 [fmt_num(host["total_reads"]),
                  f"{fmt_num(host['human_reads'])} ({host['pct_human']:.1f}%)",
                  f"{fmt_num(host['non_human_reads'])} ({host['pct_non_human']:.1f}%)"],
@@ -1369,7 +1369,7 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
             ]))
             story.append(c_tbl)
             story.append(P(
-                "ichorCNA, hg38-Panel-of-Normals, nanoDx-Parameter (r-ichorcna 0.5.1) "
+                "ichorCNA, hg19-Panel-of-Normals, nanoDx-Parameter (r-ichorcna 0.5.1) "
                 "&mdash; kein gematchtes Normalgewebe.", st_subtitle))
             plot_path = cnv.get("plot_path")
             if plot_path and os.path.exists(plot_path):
@@ -1379,10 +1379,7 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
         story.append(HR(3 * mm, 1 * mm))
 
     if not krakenuniq_ran:
-        # KrakenUniq nicht gelaufen (z.B. lokaler Testlauf ohne Referenz-DB) --
-        # der Rest dieser Funktion (Stat-Tiles/Top-Hits/Supplement/Legende/
-        # Referenzen) ist ausschließlich aus dem KrakenUniq-Report abgeleitet
-        # und wird übersprungen; Host-Depletion/CNV oben bleiben bestehen.
+        # Rest der Funktion ist KrakenUniq-spezifisch; Host-Depletion/CNV oben bleiben bestehen.
         story.append(P(
             "KrakenUniq wurde für diese Probe nicht ausgeführt (z.B. lokaler "
             "Testlauf ohne Referenzdatenbank). Host-Depletion- und CNV-Ergebnisse "
@@ -1988,11 +1985,11 @@ if __name__ == "__main__":
              "Renders only the Host-Depletion/CNV section, no demo fallback.",
     )
     parser.add_argument("--total-reads", type=int, default=None,
-                         help="Host-Depletion: total reads before hg38-Alignment")
+                         help="Host-Depletion: total reads before hg19-Alignment")
     parser.add_argument("--human-reads", type=int, default=None,
-                         help="Host-Depletion: reads mapped to hg38")
+                         help="Host-Depletion: reads mapped to hg19")
     parser.add_argument("--non-human-reads", type=int, default=None,
-                         help="Host-Depletion: reads NOT mapped to hg38 (KrakenUniq input)")
+                         help="Host-Depletion: reads NOT mapped to hg19 (KrakenUniq input)")
     parser.add_argument("--cnv-tumor-fraction", default=None)
     parser.add_argument("--cnv-ploidy", default=None)
     parser.add_argument("--cnv-gender", default=None)
@@ -2025,7 +2022,7 @@ if __name__ == "__main__":
         with open(args.input, "r", encoding="utf-8") as fh:
             report_text = fh.read()
 
-    # Host-Depletion / CNV extras (from the Snakemake pipeline upstream of
+    # Host-Depletion / CNV extras (from the alignment stage upstream of
     # KrakenUniq); each sub-dict is only attached if its values were passed.
     extra = {}
     if args.total_reads is not None and args.human_reads is not None \

@@ -1,19 +1,13 @@
 #!/bin/bash
-# =============================================================================
-# prepare_reference.sh -- lädt hg38 herunter und baut beide minimap2-Indizes
-# (map-ont für Nanopore, sr für Illumina), falls noch nicht vorhanden.
-# Wird einmalig von run_pipeline.sh submitted/ausgeführt; alle Probenjobs
-# warten (per --dependency) darauf, falls per SLURM eingereicht.
-#
-# Direkter Aufruf (z.B. zum Vorab-Cachen der Referenz):
-#   sbatch scripts/prepare_reference.sh
-#   bash scripts/prepare_reference.sh          # lokal ohne SLURM
-# =============================================================================
+# Stellt hg19-Fasta + minimap2-/bwa-mem2-Index bereit, falls fehlend.
+# Bevorzugt die geteilte hg19-Fasta/-Index von ngs-tumor-pipeline
+# (EXISTING_HG19_FASTA, scripts/config.sh) per Symlink, sonst Download+Bau.
+# Läuft einmalig vor allen Probenjobs (siehe run_pipeline.sh).
 #SBATCH --job-name=prepare_reference
 #SBATCH --partition=normal
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=32G
-#SBATCH --time=30:00
+#SBATCH --mem=48G
+#SBATCH --time=3:00:00
 #SBATCH --error=./log/%x_%j.err.txt
 #SBATCH --output=./log/%x_%j.out.txt
 
@@ -27,39 +21,50 @@ THREADS=${SLURM_CPUS_PER_TASK:-$THREADS_MINIMAP2}
 
 mkdir -p references log
 
-echo "=== Referenz vorbereiten (hg38, UCSC No-Alt Analysis Set) ==="
+echo "=== Referenz vorbereiten (hg19) ==="
 
-if [ ! -s "$HG38_FASTA" ]; then
-    GZ="references/hg38.analysisSet.fa.gz"
-    if [ ! -s "$GZ" ]; then
-        echo "Lade $HG38_FASTA_URL ..."
-        curl -fL -o "$GZ" "$HG38_FASTA_URL"
+if [ ! -s "$HG19_FASTA" ]; then
+    if [ -s "$EXISTING_HG19_FASTA" ]; then
+        echo "Nutze vorhandene hg19-Fasta: $EXISTING_HG19_FASTA"
+        ln -s "$EXISTING_HG19_FASTA" "$HG19_FASTA"
+    else
+        GZ="references/hg19.fa.gz"
+        [ -s "$GZ" ] || { echo "Lade $HG19_FASTA_URL ..."; curl -fL -o "$GZ" "$HG19_FASTA_URL"; }
+        gzip -dc "$GZ" > "$HG19_FASTA"
     fi
-    gzip -dc "$GZ" > "$HG38_FASTA"
 fi
 
 export PATH="$ENV_ALIGN/bin:$PATH"
 
-# minimap2 UND samtools kommen auf PALMA aus dem Modulsystem (nicht aus dem
-# conda-align-Env, das dort nur noch readCounter/hmmcopy liefert -- samtools
-# ließ sich über conda wegen eines libdeflate/htslib-Konflikts nicht
-# zuverlässig installieren). Ohne Modulsystem (z.B. lokaler Testlauf ohne
-# SLURM) wird das übersprungen -- dann kommen beide aus dem conda-align-Env.
+# Aligner + samtools kommen aus PALMA-Modulen, falls vorhanden, sonst conda.
 if command -v module >/dev/null 2>&1; then
     module purge
-    ml $MINIMAP2_MODULES $SAMTOOLS_MODULES
+    ml $MINIMAP2_MODULES $BWA_MEM2_MODULES $SAMTOOLS_MODULES
 fi
 
-[ -s "$HG38_FASTA.fai" ] || samtools faidx "$HG38_FASTA"
+if [ -s "$EXISTING_HG19_FASTA.fai" ] && [ ! -s "$HG19_FASTA.fai" ]; then
+    ln -s "$EXISTING_HG19_FASTA.fai" "$HG19_FASTA.fai"
+else
+    [ -s "$HG19_FASTA.fai" ] || samtools faidx "$HG19_FASTA"
+fi
 
-if [ ! -s "$HG38_MMI_NANOPORE" ]; then
+# minimap2-Index (Nanopore) -- kein bekannter vorhandener Index, wird gebaut
+if [ ! -s "$HG19_MMI_NANOPORE" ]; then
     echo "Baue minimap2-Index (map-ont) ..."
-    minimap2 -x map-ont -t "$THREADS" -d "$HG38_MMI_NANOPORE" "$HG38_FASTA"
+    minimap2 -x map-ont -t "$THREADS" -d "$HG19_MMI_NANOPORE" "$HG19_FASTA"
 fi
 
-if [ ! -s "$HG38_MMI_ILLUMINA" ]; then
-    echo "Baue minimap2-Index (sr) ..."
-    minimap2 -x sr -t "$THREADS" -d "$HG38_MMI_ILLUMINA" "$HG38_FASTA"
+# bwa-mem2-Index (Illumina) -- geteilten Index nutzen, falls vorhanden
+if [ ! -s "$HG19_BWA_MEM2_PREFIX.bwt.2bit.64" ]; then
+    if [ -s "$EXISTING_HG19_FASTA.bwt.2bit.64" ]; then
+        echo "Nutze vorhandenen bwa-mem2-Index: $EXISTING_HG19_FASTA.*"
+        for ext in 0123 amb ann bwt.2bit.64 pac; do
+            ln -sf "$EXISTING_HG19_FASTA.$ext" "$HG19_FASTA.$ext"
+        done
+    else
+        echo "Baue bwa-mem2-Index ..."
+        bwa-mem2 index "$HG19_FASTA"
+    fi
 fi
 
 echo "=== Referenz bereit ==="
