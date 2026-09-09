@@ -1360,12 +1360,12 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
          "Initiale FASTQ-Dateien"),
         (C_TILE_GREEN,
          "HUMANE READS",
-         fmt_num(human_reads),
-         f"{pct_human:.1f}% gemäß hg19-Alignment"),
+         f"{pct_human:.1f}%",
+         fmt_num(human_reads) + " Reads"),
         (HexColor("#30A46C"),
          "UNALIGNED READS",
-         fmt_num(unaligned_reads),
-         f"{pct_unaligned:.1f}% an KrakenUniq"),
+         f"{pct_unaligned:.1f}%",
+         fmt_num(unaligned_reads) + " Reads"),
         (C_TILE_GREY,
          "UNKLASSIFIZIERT",
          f"{parsed['pct_unclassified']:.1f}%",
@@ -1377,13 +1377,13 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     ]
 
     def tile_cell(colour, label, big, sub):
-        white_lbl  = S("_tl", fontName="Helvetica-Bold",  fontSize=5.5,
-                        textColor=HexColor("#FFFFFFBB"), leading=6.5,
+        white_lbl  = S("_tl", fontName="Helvetica-Bold",  fontSize=6,
+                        textColor=HexColor("#FFFFFFBB"), leading=7,
                         letterSpacing=0.5, spaceAfter=1*mm)
-        white_big  = S("_tb", fontName="Helvetica-Bold",  fontSize=13,
-                        textColor=white, leading=16, spaceAfter=0)
-        white_sub  = S("_ts", fontName="Helvetica",       fontSize=6,
-                        textColor=HexColor("#FFFFFFAA"), leading=7.5, spaceAfter=0)
+        white_big  = S("_tb", fontName="Helvetica-Bold",  fontSize=14,
+                        textColor=white, leading=17, spaceAfter=0)
+        white_sub  = S("_ts", fontName="Helvetica",       fontSize=6.5,
+                        textColor=HexColor("#FFFFFFAA"), leading=8, spaceAfter=0)
         items = [P(label, white_lbl), P(big, white_big)]
         if sub:
             items.append(P(sub, white_sub))
@@ -1394,8 +1394,8 @@ def build_story(sample_name, date, parsed, platform_override=None, extra=None):
     tile_tbl    = Table(tile_cells, colWidths=[tile_col_w]*len(tile_data), rowHeights=[13*mm])
     ts_cmds = [
         ("VALIGN",       (0,0), (-1,-1), "MIDDLE"),
-        ("LEFTPADDING",  (0,0), (-1,-1), 2.5*mm),
-        ("RIGHTPADDING", (0,0), (-1,-1), 1.5*mm),
+        ("LEFTPADDING",  (0,0), (-1,-1), 3.5*mm),
+        ("RIGHTPADDING", (0,0), (-1,-1), 2.5*mm),
         ("TOPPADDING",   (0,0), (-1,-1), 2*mm),
         ("BOTTOMPADDING",(0,0), (-1,-1), 2*mm),
         ("ROUNDEDCORNERS", [4]),
